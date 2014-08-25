@@ -14,7 +14,7 @@ namespace APIRestPayment.Controllers
 
         public APIRestPayment.Models.UserModel GetUser(long id)
         {
-            return TheModelFactory.Create(this.userHandler.GetEntity(id));
+            return TheModelFactory.Create(this.userHandler.GetEntity(id)); 
         }
         public Object Get(int page = 0, int pageSize = 2)
         {
