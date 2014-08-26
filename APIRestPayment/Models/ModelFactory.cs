@@ -54,7 +54,6 @@ namespace APIRestPayment.Models
 
         public UserModel Create(CASPaymentDTO.Domain.Users user)
         {
-            if (user == null) throw new NullReferenceException();
             string name = "";
             if (user.UserType == "LP") name = user.LegalPersonItem.Companyname;
             else name = user.RealPersonItem.Firstname + " " + user.RealPersonItem.Lastname;

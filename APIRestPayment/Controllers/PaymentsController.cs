@@ -13,11 +13,19 @@ namespace APIRestPayment.Controllers
     {
         CASPaymentDAO.DataHandler.TransactionsDataHandler transactionHandler = new CASPaymentDAO.DataHandler.TransactionsDataHandler(WebApiApplication.SessionFactory);
         
-        public APIRestPayment.Models.PaymentModel GetPayment(long id)
+        public HttpResponseMessage GetPayment(long id)
         {
-                return TheModelFactory.Create(this.transactionHandler.GetEntity(id));   
+            try
+            {
+                CASPaymentDTO.Domain.Transactions searchedTransaction = this.transactionHandler.GetEntity(id);
+                return Request.CreateResponse(HttpStatusCode.OK, TheModelFactory.Create(searchedTransaction));
+            }
+            catch (NHibernate.ObjectNotFoundException)
+            {
+                return Request.CreateResponse(HttpStatusCode.NotFound, "Item not Found");
+            } 
         }
-        public Object Get(int page=0 , int pageSize = 10)
+        public HttpResponseMessage Get(int page=0 , int pageSize = 10)
         {
             IList<CASPaymentDTO.Domain.Transactions> result = this.transactionHandler.SelectAll().Cast<CASPaymentDTO.Domain.Transactions>().ToList();
             //////////////////////////////////////////////////
@@ -27,21 +35,20 @@ namespace APIRestPayment.Controllers
             var prevLink = page > 0 ? urlHelper.Link("Payments", new { page = page - 1 }) : null;
             var nextLink = page < totalPages - 1 ? urlHelper.Link("Payments", new { page = page + 1 }) : null;
             ///////////////////////////////////////////////////
-
             var resultInModel = result
             .Skip(pageSize * page)
             .Take(pageSize)
             .ToList()
             .Select(s => TheModelFactory.Create(s));
             ////////////////////////////////////////////////////
-            return new Models.QueryResponseModel
+            return Request.CreateResponse(HttpStatusCode.OK, new Models.QueryResponseModel
             {
                 TotalCount = totalCount,
                 TotalPages = totalPages,
                 PrevPageLink = prevLink,
                 NextPageLink = nextLink,
                 Data = resultInModel.ToList()
-            };
+            });
         }
 
     }

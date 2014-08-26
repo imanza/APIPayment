@@ -11,7 +11,7 @@ namespace APIRestPayment.Controllers
     public class AccountOwnershipController : BaseApiController
     {
         CASPaymentDAO.DataHandler.UsersDataHandler usersHandler = new CASPaymentDAO.DataHandler.UsersDataHandler(WebApiApplication.SessionFactory);
-        public Object Get(int usersId , int page = 0, int pageSize = 10)
+        public HttpResponseMessage Get(int usersId , int page = 0, int pageSize = 10)
         {
             CASPaymentDTO.Domain.Users SpecificUser = usersHandler.GetEntity(usersId);
             IList<CASPaymentDTO.Domain.Account> result = SpecificUser.AccountS;
@@ -29,14 +29,14 @@ namespace APIRestPayment.Controllers
             .ToList()
             .Select(s => TheModelFactory.Create(s));
             ////////////////////////////////////////////////////
-            return new Models.QueryResponseModel
+            return Request.CreateResponse(HttpStatusCode.OK, new Models.QueryResponseModel
             {
                 TotalCount = totalCount,
                 TotalPages = totalPages,
                 PrevPageLink = prevLink,
                 NextPageLink = nextLink,
                 Data = resultInModel.ToList()
-            };
+            });
 
         }
     }

@@ -12,11 +12,19 @@ namespace APIRestPayment.Controllers
     {
         CASPaymentDAO.DataHandler.AccountDataHandler accountHandler = new CASPaymentDAO.DataHandler.AccountDataHandler(WebApiApplication.SessionFactory);
 
-        public APIRestPayment.Models.AccountModel GetAccount(long id)
+        public HttpResponseMessage GetAccount(long id)
         {
-            return TheModelFactory.Create(this.accountHandler.GetEntity(id));
+            try
+            {
+                CASPaymentDTO.Domain.Account searchedAccount = this.accountHandler.GetEntity(id);
+                return Request.CreateResponse(HttpStatusCode.OK, TheModelFactory.Create(searchedAccount));
+            }
+            catch (NHibernate.ObjectNotFoundException)
+            {
+                return Request.CreateResponse(HttpStatusCode.NotFound, "Item not Found");
+            }
         }
-        public Object Get(int page = 0, int pageSize = 10)
+        public HttpResponseMessage Get(int page = 0, int pageSize = 10)
         {
 
             IList<CASPaymentDTO.Domain.Account> result = this.accountHandler.SelectAll().Cast<CASPaymentDTO.Domain.Account>().ToList();
@@ -34,14 +42,14 @@ namespace APIRestPayment.Controllers
             .ToList()
             .Select(s => TheModelFactory.Create(s));
             ////////////////////////////////////////////////////
-            return new Models.QueryResponseModel
+            return Request.CreateResponse(HttpStatusCode.OK, new Models.QueryResponseModel
             {
                 TotalCount = totalCount,
                 TotalPages = totalPages,
                 PrevPageLink = prevLink,
                 NextPageLink = nextLink,
                 Data = resultInModel.ToList()
-            };
+            });
         }
 
 

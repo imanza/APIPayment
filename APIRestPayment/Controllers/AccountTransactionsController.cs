@@ -12,7 +12,7 @@ namespace APIRestPayment.Controllers
     public class AccountTransactionsController : BaseApiController
     {
         CASPaymentDAO.DataHandler.AccountDataHandler accountHandler = new CASPaymentDAO.DataHandler.AccountDataHandler(WebApiApplication.SessionFactory);
-        public Object Get(int accountsId, [FromUri] string inout, int page = 0, int pageSize = 10)
+        public HttpResponseMessage Get(int accountsId, [FromUri] string inout, int page = 0, int pageSize = 10)
         {
             CASPaymentDTO.Domain.Account SpecificAccount = accountHandler.GetEntity(accountsId);
             IList<CASPaymentDTO.Domain.Transactions> result = new List<CASPaymentDTO.Domain.Transactions>();
@@ -41,14 +41,14 @@ namespace APIRestPayment.Controllers
             .ToList()
             .Select(s => TheModelFactory.Create(s));
             ////////////////////////////////////////////////////
-            return new Models.QueryResponseModel
+            return Request.CreateResponse(HttpStatusCode.OK, new Models.QueryResponseModel
             {
                 TotalCount = totalCount,
                 TotalPages = totalPages,
                 PrevPageLink = prevLink,
                 NextPageLink = nextLink,
                 Data = resultInModel.ToList()
-            };
+            });
 
         }
     }

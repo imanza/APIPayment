@@ -11,6 +11,7 @@ namespace APIRestPayment
     {
         public static void Register(HttpConfiguration config)
         {
+            //to make the json response camelCase
             config.Formatters.JsonFormatter.SerializerSettings.ContractResolver = new CamelCasePropertyNamesContractResolver();
 
             config.Routes.MapHttpRoute(
