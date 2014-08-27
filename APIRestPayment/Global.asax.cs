@@ -93,5 +93,9 @@ namespace APIRestPayment
             var session = CurrentSessionContext.Unbind(SessionFactory);
             session.Dispose();
         }
+        public static void RegisterRoute(RouteCollection routes)
+        {
+            routes.MapPageRoute("LoginID", "login", "~/PaymentPages/SalesValidation");
+        }
     }
 }

@@ -256,6 +256,7 @@
     <Compile Include="Areas\HelpPage\SampleGeneration\SampleDirection.cs" />
     <Compile Include="Areas\HelpPage\SampleGeneration\TextSample.cs" />
     <Compile Include="Areas\HelpPage\XmlDocumentationProvider.cs" />
+    <Compile Include="Constants\Paths.cs" />
     <Compile Include="Controllers\AccountOwnershipController.cs" />
     <Compile Include="Controllers\AccountsController.cs" />
     <Compile Include="Controllers\AccountTransactionsController.cs" />
@@ -265,6 +266,7 @@
     <Compile Include="Controllers\UsersController.cs" />
     <Compile Include="Controllers\ValuesController.cs" />
     <Compile Include="Filters\ForceHttpsAttribute.cs" />
+    <Compile Include="Filters\GeneralAuthorization.cs" />
     <Compile Include="Global.asax.cs">
       <DependentUpon>Global.asax</DependentUpon>
     </Compile>
@@ -346,6 +348,9 @@
     <Content Include="Areas\HelpPage\Views\Help\DisplayTemplates\ApiGroup.cshtml" />
     <Content Include="Areas\HelpPage\Views\Help\Api.cshtml" />
     <None Include="Scripts\jquery-1.8.2.intellisense.js" />
+    <Content Include="Images\banner\bg-signin.jpg" />
+    <Content Include="Images\Loader.gif" />
+    <Content Include="Scripts\angular.min.js" />
     <Content Include="Scripts\jquery-1.8.2.js" />
     <Content Include="Scripts\jquery-1.8.2.min.js" />
     <None Include="Scripts\jquery.validate-vsdoc.js" />
@@ -359,7 +364,11 @@
     <Content Include="Scripts\jquery.validate.unobtrusive.min.js" />
     <Content Include="Scripts\knockout-2.2.0.debug.js" />
     <Content Include="Scripts\knockout-2.2.0.js" />
+    <Content Include="Scripts\master-Jquery\js-ajax-request.js" />
     <Content Include="Scripts\modernizr-2.6.2.js" />
+    <Content Include="Styles\all-content-sec.css" />
+    <Content Include="Styles\master.css" />
+    <Content Include="Views\PaymentPages\SalesValidation.aspx" />
     <Content Include="Web.config">
       <SubType>Designer</SubType>
     </Content>
