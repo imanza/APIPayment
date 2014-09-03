@@ -44,11 +44,19 @@ namespace APIRestPayment.Controllers
             ////////////////////////////////////////////////////
             return Request.CreateResponse(HttpStatusCode.OK, new Models.QueryResponseModel
             {
-                TotalCount = totalCount,
-                TotalPages = totalPages,
-                PrevPageLink = prevLink,
-                NextPageLink = nextLink,
-                Data = resultInModel.ToList()
+                meta = new Models.MetaModel
+                {
+                    code = (int)HttpStatusCode.OK,
+                },
+                data = resultInModel.ToList(),
+                pagination = new Models.PaginationModel
+                {
+                    TotalCount = totalCount,
+                    TotalPages = totalPages,
+                    PrevPageLink = prevLink,
+                    NextPageLink = nextLink,
+                }
+
             });
 
         }

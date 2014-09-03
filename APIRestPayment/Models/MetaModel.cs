@@ -5,11 +5,10 @@ using System.Web;
 
 namespace APIRestPayment.Models
 {
-    public class QueryResponseModel
+    public class MetaModel
     {
-        public MetaModel meta;
-        public object data;
-        public PaginationModel pagination;
-
+        public int code;
+        public string errorType;
+        public string errorMessage;
     }
 }
