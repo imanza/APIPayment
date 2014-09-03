@@ -1,4 +1,6 @@
-﻿using System;
+﻿using NHibernate;
+using NHibernate.Context;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -7,23 +9,24 @@ using System.Security.Principal;
 using System.Text;
 using System.Threading;
 using System.Web;
-
 using System.Web.Http.Filters;
 
 namespace APIRestPayment.Filters
 {
     public class GeneralAuthorization : AuthorizationFilterAttribute
     {
+        private bool lastTimeUnauthenticated = false;
+        private ISessionFactory auxilarySessionFactory;
         private CASPaymentDAO.DataHandler.SecretDataHandler secretHandler = new CASPaymentDAO.DataHandler.SecretDataHandler(WebApiApplication.SessionFactory);
         private CASPaymentDAO.DataHandler.UsersDataHandler userHandler = new CASPaymentDAO.DataHandler.UsersDataHandler(WebApiApplication.SessionFactory);
         public override void OnAuthorization(System.Web.Http.Controllers.HttpActionContext actionContext)
         {
             //Case that user is authenticated using forms authentication
             //so no need to check header for basic authentication.
-            if (Thread.CurrentPrincipal.Identity.IsAuthenticated)
-            {
-                return;
-            }
+            //if (Thread.CurrentPrincipal.Identity.IsAuthenticated)
+            //{
+            //    return;
+            //}
 
             var authHeader = actionContext.Request.Headers.Authorization;
 
@@ -33,17 +36,28 @@ namespace APIRestPayment.Filters
                 !String.IsNullOrWhiteSpace(authHeader.Parameter))
                 {
                     var credArray = GetCredentials(authHeader);
-                    var userName = credArray[0];
+                    var userEmail = credArray[0];
                     var password = credArray[1];
 
-                    if (IsResourceOwner(userName, actionContext))
+                    if (IsResourceOwner(userEmail, actionContext))
                     {
                         //You can use Websecurity or asp.net memebrship provider to login, for
                         //for he sake of keeping example simple, we used out own login functionality
-                        if (this.CheckLogin(userName, password))
+                        CASPaymentDTO.Domain.Users userQuery;
+                        if (this.CheckLogin(userEmail, password , out userQuery))
                         {
-                            var currentPrincipal = new GenericPrincipal(new GenericIdentity(userName) , null);
-                            Thread.CurrentPrincipal = currentPrincipal;
+                            String[] userRolesArray = new String[userQuery.UsersRolesS.Count];
+                            for (int i = 0; i < userQuery.UsersRolesS.Count; i++)
+			                {
+                                userRolesArray[i] = userQuery.UsersRolesS[i].RolesItem.RoleName;
+                            }
+                            var identity = new GenericIdentity(userQuery.Id.ToString());
+                            var principal = new GenericPrincipal(identity, userRolesArray);
+                            Thread.CurrentPrincipal = principal;
+                            if (HttpContext.Current != null)HttpContext.Current.User = principal;
+                            this.lastTimeUnauthenticated = false;
+                            //var currentPrincipal = new GenericPrincipal(new GenericIdentity(userEmail) , null);
+                            //Thread.CurrentPrincipal = currentPrincipal;
                             return;
                         }
                     }
@@ -90,24 +104,54 @@ namespace APIRestPayment.Filters
 
         private void HandleUnauthorizedRequest(System.Web.Http.Controllers.HttpActionContext actionContext)
         {
+            this.lastTimeUnauthenticated = true;
             actionContext.Response = actionContext.Request.CreateResponse(HttpStatusCode.Unauthorized);
 
             actionContext.Response.Headers.Add("WWW-Authenticate",
-            "Basic Scheme='payment' location='"+Constants.Paths.LoginPath+"'");
+            "Basic Scheme='APIRestPayment' location='" + Constants.Paths.LoginPath + "'");
 
         }
 
-        private bool CheckLogin(string userEmail, string password)
+        private void CreateSessions()
         {
+            /// congigure NHibernate
+            var nhConfig = new NHibernate.Cfg.Configuration().Configure();
+             auxilarySessionFactory = nhConfig.BuildSessionFactory();
+
+             var session = auxilarySessionFactory.OpenSession();
+             CurrentSessionContext.Bind(session);
+        }
+
+        private bool CheckLogin(string userEmail, string password , out CASPaymentDTO.Domain.Users userEntity)
+        {
+            NHibernate.ISession session;
+            bool sessionCreated = false;
+
+            if (lastTimeUnauthenticated)
+            {
+                this.CreateSessions();
+                userHandler = new CASPaymentDAO.DataHandler.UsersDataHandler(this.auxilarySessionFactory);
+                sessionCreated = true;
+            }
             CASPaymentDTO.Domain.Users person = (userHandler.SelectAll().Cast<CASPaymentDTO.Domain.Users>().Where( s => s.Email == userEmail).FirstOrDefault());
             if (person != null)
             {
+                // TODO correct the password check
                 //if (person.Password == password.GetHashCode())
                 if (person.Password.ToString() == password)
                 {
+                    if(sessionCreated)WebApiApplication.ChangeSession(this.auxilarySessionFactory);
+                    userEntity = person;
                     return true;
                 }
             }
+            if (sessionCreated)
+            {
+                session = CurrentSessionContext.Unbind(auxilarySessionFactory);
+                session.Close();
+                session.Dispose();
+            }
+            userEntity = null;
             return false;
         }
     }

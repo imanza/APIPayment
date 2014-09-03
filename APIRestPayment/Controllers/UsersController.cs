@@ -29,15 +29,7 @@ namespace APIRestPayment.Controllers
         }
         public HttpResponseMessage Get(int page = 0, int pageSize = 2)
         {
-            //redirection example
-            //if (page == 0)
-            //{
-            //    var response = Request.CreateResponse(HttpStatusCode.Moved);
-            //    string fullyQualifiedUrl = Request.RequestUri.GetLeftPart(UriPartial.Authority);
-            //    //response.Headers.Location = new Uri(fullyQualifiedUrl);
-            //    response.Headers.Location = new Uri("http://www.zaeemflowers.com");
-            //    return response;
-            //}
+            
             IList<CASPaymentDTO.Domain.Users> result = this.userHandler.SelectAll().Cast<CASPaymentDTO.Domain.Users>().ToList();
 
             //////////////////////////////////////////////////

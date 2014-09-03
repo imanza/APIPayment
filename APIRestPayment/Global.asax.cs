@@ -75,12 +75,12 @@ namespace APIRestPayment
 
         protected void Application_Error(object sender, EventArgs e)
         {
-
+            
+            Application_BeginRequest(sender, e);
         }
 
         protected void Session_End(object sender, EventArgs e)
         {
-
         }
 
         protected void Application_End(object sender, EventArgs e)
@@ -96,6 +96,11 @@ namespace APIRestPayment
         public static void RegisterRoute(RouteCollection routes)
         {
             routes.MapPageRoute("LoginID", "login", "~/PaymentPages/SalesValidation");
+        }
+
+        public static void ChangeSession(ISessionFactory isf)
+        {
+            SessionFactory = isf;
         }
     }
 }

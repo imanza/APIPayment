@@ -9,6 +9,7 @@ using System.Web.Http.Routing;
 
 namespace APIRestPayment.Controllers
 {
+    [Filters.GeneralAuthorization]
     public class AccountTransactionsController : BaseApiController
     {
         CASPaymentDAO.DataHandler.AccountDataHandler accountHandler = new CASPaymentDAO.DataHandler.AccountDataHandler(WebApiApplication.SessionFactory);
