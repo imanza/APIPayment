@@ -257,7 +257,9 @@
     <Compile Include="Areas\HelpPage\SampleGeneration\TextSample.cs" />
     <Compile Include="Areas\HelpPage\XmlDocumentationProvider.cs" />
     <Compile Include="Constants\DataAccessTypes.cs" />
+    <Compile Include="Constants\DateFuncs.cs" />
     <Compile Include="Constants\Paths.cs" />
+    <Compile Include="Constants\RoleTypes.cs" />
     <Compile Include="Controllers\AccountOwnershipController.cs" />
     <Compile Include="Controllers\AccountsController.cs" />
     <Compile Include="Controllers\AccountTransactionsController.cs" />
@@ -272,12 +274,16 @@
       <DependentUpon>Global.asax</DependentUpon>
     </Compile>
     <Compile Include="Models\AccountModel.cs" />
+    <Compile Include="Models\ApplicationModel.cs" />
+    <Compile Include="Models\BankAccountModel.cs" />
+    <Compile Include="Models\LegalPersonModel.cs" />
     <Compile Include="Models\MetaModel.cs" />
     <Compile Include="Models\ModelFactory.cs" />
     <Compile Include="Models\PaginationModel.cs" />
     <Compile Include="Models\PaymentModel.cs" />
+    <Compile Include="Models\POSTModels\AccountPOSTModel.cs" />
     <Compile Include="Models\QueryResponseModel.cs" />
-    <Compile Include="Models\TransactionModel.cs" />
+    <Compile Include="Models\RealPersonModel.cs" />
     <Compile Include="Models\UserModel.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

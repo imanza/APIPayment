@@ -5,6 +5,8 @@ using System.Net;
 using System.Net.Http;
 using System.Web.Http;
 using System.Web.Http.Routing;
+using APIRestPayment.Constants;
+using System.Threading;
 
 namespace APIRestPayment.Controllers
 {
@@ -13,25 +15,82 @@ namespace APIRestPayment.Controllers
     {
         CASPaymentDAO.DataHandler.UsersDataHandler userHandler = new CASPaymentDAO.DataHandler.UsersDataHandler(WebApiApplication.SessionFactory);
 
+        #region Access
+
+        public override DataAccessTypes CurrentUserAccessType
+        {
+            get
+            {
+                if( base.CurrentUserAccessType == DataAccessTypes.Administrator) return DataAccessTypes.Administrator;
+                else
+                {
+                    // TODO My Own Logic To check the owner
+                    //////////////////////////////
+                    var routeData = Request.GetRouteData();
+                    var resourceID = routeData.Values["id"] as string;
+                    if (Thread.CurrentPrincipal.Identity.Name == resourceID)
+                    {
+                        return DataAccessTypes.Owner;
+                    }
+                    /////////////////////////////
+                    return DataAccessTypes.Anonymous;
+                }
+            }
+        }
+
+        #endregion
+
+        #region Get
+
         public HttpResponseMessage GetUser(long id)
         {
             try
             {
                 CASPaymentDTO.Domain.Users searchedUser = this.userHandler.GetEntity(id);
-                return Request.CreateResponse(HttpStatusCode.OK, TheModelFactory.Create(searchedUser));
+                return Request.CreateResponse(HttpStatusCode.OK,new Models.QueryResponseModel{
+                   meta = new Models.MetaModel{
+                       code = (int)HttpStatusCode.OK
+                   },
+                   data = TheModelFactory.Create(searchedUser , CurrentUserAccessType),
+                });
             }
             catch (NHibernate.ObjectNotFoundException)
             {
-                return Request.CreateResponse(HttpStatusCode.NotFound , "Item not Found");
+                return Request.CreateResponse(HttpStatusCode.NotFound, new Models.QueryResponseModel
+                {
+                    meta = new Models.MetaModel
+                    {
+                        code = (int)HttpStatusCode.NotFound,
+                        errorMessage = "Item was not found"
+                    }
+                });
             }
-               
-                
+
+
         }
         public HttpResponseMessage Get(int page = 0, int pageSize = 2)
         {
-            
-            IList<CASPaymentDTO.Domain.Users> result = this.userHandler.SelectAll().Cast<CASPaymentDTO.Domain.Users>().ToList();
-
+            IList<CASPaymentDTO.Domain.Users> result =new List<CASPaymentDTO.Domain.Users>();
+            if (CurrentUserAccessType != DataAccessTypes.Administrator)
+            {
+                long currentUserId;
+                if (Int64.TryParse(Thread.CurrentPrincipal.Identity.Name, out currentUserId)) result.Add(userHandler.GetEntity(currentUserId));
+                else
+                {
+                    return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
+                    {
+                        meta = new Models.MetaModel
+                        {
+                            code = (int)HttpStatusCode.BadRequest,
+                            errorMessage = "The Identity of the user is not known"
+                        }
+                    });
+                }
+            }
+            else
+            {
+                result = this.userHandler.SelectAll().Cast<CASPaymentDTO.Domain.Users>().ToList();
+            }
             //////////////////////////////////////////////////
             var totalCount = result.Count();
             var totalPages = (int)Math.Ceiling((double)totalCount / pageSize);
@@ -43,12 +102,13 @@ namespace APIRestPayment.Controllers
             .Skip(pageSize * page)
             .Take(pageSize)
             .ToList()
-            .Select(s => TheModelFactory.Create(s));
+            .Select(s => TheModelFactory.Create(s , (CurrentUserAccessType==DataAccessTypes.Administrator) ? DataAccessTypes.Administrator : DataAccessTypes.Owner));
             ////////////////////////////////////////////////////
             return Request.CreateResponse(HttpStatusCode.OK, new Models.QueryResponseModel
             {
-                meta = new Models.MetaModel{
-                    code = (int) HttpStatusCode.OK,
+                meta = new Models.MetaModel
+                {
+                    code = (int)HttpStatusCode.OK,
                 },
                 data = resultInModel.ToList(),
                 pagination = new Models.PaginationModel
@@ -60,6 +120,11 @@ namespace APIRestPayment.Controllers
                 }
 
             });
+            
         }
+
+        #endregion
+
+
     }
 }

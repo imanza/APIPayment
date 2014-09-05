@@ -85,13 +85,14 @@ namespace APIRestPayment
 
         protected void Application_End(object sender, EventArgs e)
         {
-
+            var session = CurrentSessionContext.Unbind(SessionFactory);
+            session.Dispose();
         }
 
         protected void Application_EndRequest(object sender, EventArgs e)
         {
-            var session = CurrentSessionContext.Unbind(SessionFactory);
-            session.Dispose();
+            
+            
         }
         public static void RegisterRoute(RouteCollection routes)
         {

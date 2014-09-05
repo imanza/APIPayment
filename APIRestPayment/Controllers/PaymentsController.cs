@@ -19,11 +19,25 @@ namespace APIRestPayment.Controllers
             try
             {
                 CASPaymentDTO.Domain.Transactions searchedTransaction = this.transactionHandler.GetEntity(id);
-                return Request.CreateResponse(HttpStatusCode.OK, TheModelFactory.Create(searchedTransaction));
+                return Request.CreateResponse(HttpStatusCode.OK, new Models.QueryResponseModel
+                {
+                    meta = new Models.MetaModel
+                    {
+                        code = (int)HttpStatusCode.OK
+                    },
+                    data = TheModelFactory.Create(searchedTransaction)
+                });
             }
             catch (NHibernate.ObjectNotFoundException)
             {
-                return Request.CreateResponse(HttpStatusCode.NotFound, "Item not Found");
+                return Request.CreateResponse(HttpStatusCode.NotFound, new Models.QueryResponseModel
+                {
+                    meta = new Models.MetaModel
+                    {
+                        code = (int)HttpStatusCode.NotFound,
+                        errorMessage = "Item was not found"
+                    }
+                });
             } 
         }
         public HttpResponseMessage Get(int page=0 , int pageSize = 10)
