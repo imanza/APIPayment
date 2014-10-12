@@ -25,9 +25,11 @@ namespace APIRestPayment.Constants
             return pdt;
         }
 
-        public static DateTime ToShamsiCal(DateTime gregorianDate)
+        public static DateTime ToShamsiCal(DateTime? gregorianDatenullable)
         {
             System.Globalization.PersianCalendar currentPersianDate = new System.Globalization.PersianCalendar();
+            if (gregorianDatenullable == null) return currentPersianDate.MinSupportedDateTime;
+            DateTime gregorianDate = (DateTime)gregorianDatenullable;
             try
             {
                 return new DateTime(currentPersianDate.GetYear(gregorianDate), currentPersianDate.GetMonth(gregorianDate), currentPersianDate.GetDayOfMonth(gregorianDate), currentPersianDate.GetHour(gregorianDate), currentPersianDate.GetMinute(gregorianDate), 0);

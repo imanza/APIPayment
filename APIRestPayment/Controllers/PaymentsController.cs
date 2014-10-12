@@ -7,13 +7,17 @@ using System.Web.Http;
 using APIRestPayment;
 using System.Web.Http.Routing;
 
+
+
 namespace APIRestPayment.Controllers
 {
     [Filters.GeneralAuthorization]
     public class PaymentsController : BaseApiController
     {
         CASPaymentDAO.DataHandler.TransactionsDataHandler transactionHandler = new CASPaymentDAO.DataHandler.TransactionsDataHandler(WebApiApplication.SessionFactory);
-        
+
+        #region GET
+
         public HttpResponseMessage GetPayment(long id)
         {
             try
@@ -73,6 +77,52 @@ namespace APIRestPayment.Controllers
 
             });
         }
+        #endregion
+
+        #region POST
+
+
+        public HttpResponseMessage Post([FromBody] APIRestPayment.Models.POSTModels.PaymentPOSTModel paymentPOSTModel)
+        {
+           
+                string ParseErrorMessage; 
+                CASPaymentDTO.Domain.Transactions transactionPAYEE = TheModelFactory.Parse(paymentPOSTModel , out ParseErrorMessage);
+
+                if (transactionPAYEE == null)
+                {
+                    return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
+                    {
+                        meta = new Models.MetaModel
+                        {
+                            code = (int)HttpStatusCode.BadRequest,
+                            errorMessage = ParseErrorMessage,
+                        }
+                    });
+                }
+
+                //if (CheckValidityOFPOST(transactionPAYEE))
+                //{
+
+                //}
+                
+
+                var response = Request.CreateResponse(HttpStatusCode.Moved /*, new Object[]{paymentPOSTModel , transactionPAYEE} */);
+                string fullyQualifiedUrl = Request.RequestUri.GetLeftPart(UriPartial.Authority);
+                response.Headers.Location = new Uri(fullyQualifiedUrl +"/Home/sales");
+                //response.Headers.Location = new Uri( , UriKind.Relative);
+                return response;
+            
+
+            }
+
+            private bool CheckValidityOFPOST(CASPaymentDTO.Domain.Transactions transactionPAYEE)
+            {
+
+                return true;
+            }
+
+        #endregion
+
 
     }
 }

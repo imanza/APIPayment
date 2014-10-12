@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Web;
 using APIRestPayment.Constants;
+using APIRestPayment.Models.POSTModels;
 
 namespace APIRestPayment.Models
 {
@@ -11,6 +12,11 @@ namespace APIRestPayment.Models
     {
         private System.Web.Http.Routing.UrlHelper _UrlHelper;
 
+        private CASPaymentDAO.DataHandler.CurrencyTypeDataHandler currencyHandler = new CASPaymentDAO.DataHandler.CurrencyTypeDataHandler(WebApiApplication.SessionFactory);
+        private CASPaymentDAO.DataHandler.AccountTypeDataHandler accountTypeHandler = new CASPaymentDAO.DataHandler.AccountTypeDataHandler(WebApiApplication.SessionFactory);
+        private CASPaymentDAO.DataHandler.UsersDataHandler userHandler = new CASPaymentDAO.DataHandler.UsersDataHandler(WebApiApplication.SessionFactory);
+        private CASPaymentDAO.DataHandler.TransactionTypeDataHandler transactionTypeHandler = new CASPaymentDAO.DataHandler.TransactionTypeDataHandler(WebApiApplication.SessionFactory);
+        private CASPaymentDAO.DataHandler.AccountDataHandler accountHandler = new CASPaymentDAO.DataHandler.AccountDataHandler(WebApiApplication.SessionFactory);
         public ModelFactory(HttpRequestMessage request)
         {
             _UrlHelper = new System.Web.Http.Routing.UrlHelper(request);
@@ -26,13 +32,13 @@ namespace APIRestPayment.Models
             if (transaction == null) throw new NullReferenceException();
 
             AccountModel source = null;
-            if (transaction.Showsender) source = this.CreateWithoutCircularReference(transaction.SourceAccountItem);
+            if ((bool)transaction.Showsender) source = this.CreateWithoutCircularReference(transaction.SourceAccountItem);
 
             return new PaymentModel()
             {
                 Url = _UrlHelper.Link("Payments", new { id = transaction.Id }),
                 Trackingnumber = transaction.Id.ToString(),
-                ExecutionDate = DateFuncs.ToShamsiCal( transaction.Executiondatetime),
+                ExecutionDate =DateFuncs.ToShamsiCal( transaction.Executiondatetime),
                 SourceAccount = source,
                 DestinationAccount = this.CreateWithoutCircularReference(transaction.DestinationAccountItem),
                 Amount = transaction.Amount,
@@ -56,6 +62,7 @@ namespace APIRestPayment.Models
                 result.Balance = account.Balance;
                 result.AccountType = account.AccountTypeItem.Name;
                 result.Currency = account.CurrencyTypeItem.Name;
+                result.Id = account.Id;
             }
             
             return result;
@@ -79,6 +86,7 @@ namespace APIRestPayment.Models
                 result.Province = (user.ProvinceItem != null) ? user.ProvinceItem.Name : null;
                 result.City = (user.CityItem != null) ? user.CityItem.Name : null;
                 result.IsActive = user.IsActive;
+                result.Id = user.Id;
                 //////////
                 IList<ApplicationModel> apps = new List<ApplicationModel>();
                 foreach (CASPaymentDTO.Domain.Application ap in user.ApplicationS) apps.Add(this.Create(ap));
@@ -137,7 +145,7 @@ namespace APIRestPayment.Models
             return new ApplicationModel
             {
                 Name = application.Name,
-                Applicationcode = application.Applicationcode
+                Applicationcode = application.ClientID
             };
         }
         #endregion
@@ -167,6 +175,65 @@ namespace APIRestPayment.Models
 
             return result;
         }
+        #endregion
+
+
+        #region Parse For POST Methods
+
+        public CASPaymentDTO.Domain.Account Parse(AccountPOSTModel accountPOSTModel , out string ErrorMessage)
+        {
+            if (accountPOSTModel.UserId == null || accountPOSTModel.AccountType == null)
+            {
+                ErrorMessage = "Incomplete Account Data.";
+                return null;
+            }
+            CASPaymentDTO.Domain.Account account = new CASPaymentDTO.Domain.Account();
+            try
+            {
+                CASPaymentDTO.Domain.CurrencyType ct = currencyHandler.Search(new CASPaymentDTO.Domain.CurrencyType() { Name = accountPOSTModel.Currency }).Cast<CASPaymentDTO.Domain.CurrencyType>().First();
+                CASPaymentDTO.Domain.AccountType at = accountTypeHandler.Search(new CASPaymentDTO.Domain.AccountType() { Name = accountPOSTModel.AccountType }).Cast<CASPaymentDTO.Domain.AccountType>().First();
+                account.CurrencyTypeItem = ct;
+                account.AccountTypeItem = at;
+                account.UsersItem = userHandler.GetEntity(accountPOSTModel.UserId);
+                account.IsPublic = (accountPOSTModel.IsPublic != null) ? accountPOSTModel.IsPublic : true;
+                ErrorMessage="";
+                return account;
+            }
+            catch (Exception)
+            {
+                ErrorMessage = "Account data were not valid.";
+                return null;
+            }
+        }
+
+
+        public CASPaymentDTO.Domain.Transactions Parse(PaymentPOSTModel paymentPOSTModel, out string ErrorMessage)
+        {
+            if (paymentPOSTModel.PayeeAccountNumber == null || paymentPOSTModel.TransactionType == null || paymentPOSTModel.Amount == null || paymentPOSTModel.RequestNonce == null || paymentPOSTModel.RedirectUrl == null)
+            {
+                ErrorMessage = "Incomplete Payment Data.";
+                return null;
+            }
+            //TODO check for nonces and datetimes to prevent system exposed with REPLY ATTACK
+            CASPaymentDTO.Domain.Transactions payment = new CASPaymentDTO.Domain.Transactions();
+            try
+            {
+                CASPaymentDTO.Domain.CurrencyType ct = currencyHandler.Search(new CASPaymentDTO.Domain.CurrencyType() { Name = paymentPOSTModel.Currency }).Cast<CASPaymentDTO.Domain.CurrencyType>().First();
+                CASPaymentDTO.Domain.TransactionType tt = transactionTypeHandler.Search(new CASPaymentDTO.Domain.TransactionType() { Name = paymentPOSTModel.TransactionType }).Cast<CASPaymentDTO.Domain.TransactionType>().First();
+                payment.CurrencyTypeItem = ct;
+                payment.Amount = paymentPOSTModel.Amount;
+                payment.TransactionTypeItem = tt;
+                payment.DestinationAccountItem = accountHandler.Search(new CASPaymentDTO.Domain.Account() { Accountnumber = paymentPOSTModel.PayeeAccountNumber }).Cast<CASPaymentDTO.Domain.Account>().First();
+                ErrorMessage = "";
+                return payment;
+            }
+            catch (Exception)
+            {
+                ErrorMessage = "Payment data were not valid.";
+                return null;
+            }
+        }
+
         #endregion
 
         private IList<Tmodel> ExtractModel<Tmodel,Tsource>(IList<Tsource> sourceList )

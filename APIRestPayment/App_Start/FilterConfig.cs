@@ -1,4 +1,5 @@
 ﻿using System.Web;
+using System.Web.Http.Filters;
 using System.Web.Mvc;
 
 namespace APIRestPayment
@@ -8,7 +9,12 @@ namespace APIRestPayment
         public static void RegisterGlobalFilters(GlobalFilterCollection filters)
         {
             filters.Add(new HandleErrorAttribute());
-            //filters.Add(new Filters.ForceHttpsAttribute());
+            
+        }
+
+        public static void RegisterHttpFilters(HttpFilterCollection filters)
+        {
+            filters.Add(new Filters.ForceHttpsAttribute());
         }
     }
 }

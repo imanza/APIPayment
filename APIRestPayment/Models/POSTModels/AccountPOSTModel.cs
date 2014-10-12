@@ -9,6 +9,7 @@ namespace APIRestPayment.Models.POSTModels
     {
         public string AccountType { set; get; }
         public string Currency { set; get; }
+        public bool? IsPublic { set; get; }
         public long UserId { set; get; }
     }
 }

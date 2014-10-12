@@ -7,6 +7,7 @@ namespace APIRestPayment.Models
 {
     public class UserModel
     {
+        public long? Id { set; get; }
         public string Url { set; get; }
         public string UserType { set; get; }
         public string CorrespondingNationalNumber { set; get; }

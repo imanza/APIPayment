@@ -10,7 +10,14 @@ namespace APIRestPayment.Controllers
     {
         public ActionResult Index()
         {
+            return View();//Redirect("");
+        }
+
+        public ActionResult Sales() {
+
             return View();
         }
+
+
     }
 }

@@ -29,7 +29,7 @@ namespace APIRestPayment
         {   
             
             //force Https
-
+            //FilterConfig.RegisterHttpFilters(GlobalConfiguration.Configuration.Filters);
             
             //////// to generate json response
             GlobalConfiguration.Configuration.Formatters.Clear();
@@ -58,9 +58,14 @@ namespace APIRestPayment
         {
 
         }
-
         protected void Application_BeginRequest(object sender, EventArgs e)
         {
+                //if (!HttpContext.Current.Request.IsSecureConnection)
+                //{
+                //    HttpContext.Current.Response.Redirect(HttpContext.Current.Request.Url.AbsoluteUri.Replace("http://", "https://"));
+                //    return;
+                //}
+
             lock (syncRoot)
             {
                 var session = SessionFactory.OpenSession();
@@ -76,7 +81,7 @@ namespace APIRestPayment
         protected void Application_Error(object sender, EventArgs e)
         {
             
-            Application_BeginRequest(sender, e);
+           // Application_BeginRequest(sender, e);
         }
 
         protected void Session_End(object sender, EventArgs e)
@@ -85,18 +90,24 @@ namespace APIRestPayment
 
         protected void Application_End(object sender, EventArgs e)
         {
-            var session = CurrentSessionContext.Unbind(SessionFactory);
-            session.Dispose();
+            try
+            {
+                var session = CurrentSessionContext.Unbind(SessionFactory);
+                session.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex);
+            }
         }
 
         protected void Application_EndRequest(object sender, EventArgs e)
         {
-            
-            
+            var session = CurrentSessionContext.Unbind(SessionFactory);            
         }
         public static void RegisterRoute(RouteCollection routes)
         {
-            routes.MapPageRoute("LoginID", "login", "~/PaymentPages/SalesValidation");
+          //  routes.MapPageRoute("LoginID", "login", "~/PaymentPages/SalesValidation");
         }
 
         public static void ChangeSession(ISessionFactory isf)
