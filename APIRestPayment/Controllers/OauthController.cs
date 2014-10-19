@@ -1,8 +1,10 @@
-﻿using Microsoft.Owin.Security.OAuth;
+﻿using Microsoft.Owin.Security.Infrastructure;
+using Microsoft.Owin.Security.OAuth;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
 using System.Web.Mvc;
@@ -11,10 +13,12 @@ namespace APIRestPayment.Controllers
 {
     public class OauthController : Controller
     {
+        private CASPaymentDAO.DataHandler.ApplicationDataHandler appHandler = new CASPaymentDAO.DataHandler.ApplicationDataHandler(WebApiApplication.SessionFactory);
+
+        #region Code Behind
+        
         public ActionResult Authorize()
         {
-
-            #region Code Behind
 
             if (Response.StatusCode != 200)
             {
@@ -116,6 +120,58 @@ namespace APIRestPayment.Controllers
 
             });
         }
+
+        public static void CreateAuthorizationCode(AuthenticationTokenCreateContext context)
+        {
+            CASPaymentDAO.DataHandler.AuthorizationCodeDataHandler authorizationCodeHandler = new CASPaymentDAO.DataHandler.AuthorizationCodeDataHandler(WebApiApplication.SessionFactory);
+            CASPaymentDAO.DataHandler.UsersDataHandler usersHandler = new CASPaymentDAO.DataHandler.UsersDataHandler(WebApiApplication.SessionFactory);            
+            CASPaymentDAO.DataHandler.ApplicationDataHandler applicationHandler = new CASPaymentDAO.DataHandler.ApplicationDataHandler(WebApiApplication.SessionFactory);
+            //create a token
+            context.SetToken(Guid.NewGuid().ToString("n") + Guid.NewGuid().ToString("n") + Thread.CurrentPrincipal.Identity.Name);
+            //_authenticationCodes[context.Token] = context.SerializeTicket();
+            CASPaymentDTO.Domain.AuthorizationCode authorizationCode = new CASPaymentDTO.Domain.AuthorizationCode();
+
+            if (context.Ticket.Identity.Name != null)
+            {
+                CASPaymentDTO.Domain.Users user = usersHandler.Search(new CASPaymentDTO.Domain.Users { Email = context.Ticket.Identity.Name }).Cast<CASPaymentDTO.Domain.Users>().FirstOrDefault();
+                if (!object.Equals(user, default(CASPaymentDTO.Domain.Users)))
+                {
+                    authorizationCode.UsersItem = user;
+                }
+            }
+
+            if (context.Ticket.Properties.Dictionary["client_id"] != null)
+            {
+                CASPaymentDTO.Domain.Application application = applicationHandler.Search(new CASPaymentDTO.Domain.Application { ClientID = context.Ticket.Properties.Dictionary["client_id"] }).Cast<CASPaymentDTO.Domain.Application>().FirstOrDefault();
+                if (!object.Equals(application, default(CASPaymentDTO.Domain.Application)))
+                {
+                    authorizationCode.ApplicationItem = application;
+                }
+            }
+            //remember to search ticket with token Item
+            authorizationCode.Tokencontent = context.Token;
+            authorizationCode.Ticketcontent = context.SerializeTicket();
+            authorizationCode.Used = false;
+            authorizationCodeHandler.Save(authorizationCode);
+
+        }
+
+
+        public static void ReceiveAuthorizationCode(AuthenticationTokenReceiveContext context)
+        {
+            CASPaymentDAO.DataHandler.AuthorizationCodeDataHandler authorizationCodeHandler = new CASPaymentDAO.DataHandler.AuthorizationCodeDataHandler(WebApiApplication.SessionFactory);
+            CASPaymentDTO.Domain.AuthorizationCode authorizationCode = authorizationCodeHandler.Search(new CASPaymentDTO.Domain.AuthorizationCode { Tokencontent = context.Token }).Cast<CASPaymentDTO.Domain.AuthorizationCode>().FirstOrDefault();
+            if (!object.Equals(authorizationCode, default(CASPaymentDTO.Domain.AuthorizationCode)))
+            {
+                if (!authorizationCode.Used)
+                {
+                    authorizationCode.Used = true;
+                    authorizationCodeHandler.Update(authorizationCode);
+                    context.DeserializeTicket(authorizationCode.Ticketcontent);
+                }
+            }
+        }
+
 
         #endregion
 

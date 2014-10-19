@@ -10,6 +10,7 @@ using Microsoft.Owin.Security;
 using APIRestPayment.AuthorizationModels;
 using Microsoft.Owin.Security.OAuth;
 using System.Text;
+using System.Threading;
 
 namespace APIRestPayment.Controllers
 {
@@ -49,7 +50,7 @@ namespace APIRestPayment.Controllers
             if (ModelState.IsValid)
             {
 
-                PasswordVerificationResult result = PasswordVerificationResult.Success;
+                PasswordVerificationResult result = PasswordVerificationResult.Failed;
                 CustomUserModel user = await UserManager.FindByNameAsync(model.UserEmail);
                 if (user == null)
                 {
@@ -215,7 +216,7 @@ namespace APIRestPayment.Controllers
         public ActionResult ExternalLogin(string provider, string returnUrl)
         {
             // Request a redirect to the external login provider
-            return new ChallengeResult(provider, Url.Action("ExternalLoginCallback", "Account", new { ReturnUrl = returnUrl }));
+            return new ChallengeResult(provider, Url.Action("ExternalLoginCallback", "Member", new { ReturnUrl = returnUrl }));
         }
 
         //
@@ -252,7 +253,7 @@ namespace APIRestPayment.Controllers
         public ActionResult LinkLogin(string provider)
         {
             // Request a redirect to the external login provider to link a login for the current user
-            return new ChallengeResult(provider, Url.Action("LinkLoginCallback", "Account"), User.Identity.GetUserId());
+            return new ChallengeResult(provider, Url.Action("LinkLoginCallback", "Member"), User.Identity.GetUserId());
         }
 
         //
@@ -362,14 +363,16 @@ namespace APIRestPayment.Controllers
         {
             AuthenticationManager.SignOut(DefaultAuthenticationTypes.ExternalCookie);
             //var identity = await UserManager.CreateIdentityAsync(user, DefaultAuthenticationTypes.ApplicationCookie);
-            //var identity = await UserManager.CreateIdentityAsync(user , "Application");
+            var identity = await UserManager.CreateIdentityAsync(user , "Application");
             //UserManager.
-            //AuthenticationManager.SignIn(new AuthenticationProperties() { IsPersistent = isPersistent }, identity);
-            AuthenticationManager.SignIn(
-                    new AuthenticationProperties { IsPersistent = isPersistent , ExpiresUtc = DateTime.UtcNow.AddHours(1) },
-                    new ClaimsIdentity(new[] { new Claim(
-                       ClaimsIdentity.DefaultNameClaimType, Request.Form["UserEmail"]) },
-                       "Application"));
+            identity.AddClaim(new Claim(ClaimsIdentity.DefaultNameClaimType, user.Email));
+            identity.AddClaim(new Claim(ClaimsIdentity.DefaultRoleClaimType, user.UsersRolesS[0].RolesItem.RoleName));
+            AuthenticationManager.SignIn(new AuthenticationProperties() { IsPersistent = isPersistent }, identity);
+            //AuthenticationManager.SignIn(
+            //        new AuthenticationProperties { IsPersistent = isPersistent , ExpiresUtc = DateTime.UtcNow.AddHours(1) },
+            //        new ClaimsIdentity(new[] { new Claim(
+            //           ClaimsIdentity.DefaultNameClaimType,user.Id) },
+            //           "Application"));
         }
 
         private void AddErrors(IdentityResult result)
@@ -388,6 +391,35 @@ namespace APIRestPayment.Controllers
                 return user.Password != null;
             }
             return false;
+        }
+
+
+        public async Task<bool> CheckCredentialsValidity(string userEmail, string Password , bool IsPersistent)
+        {
+            return await Task.Run(async () => { 
+            PasswordVerificationResult result = PasswordVerificationResult.Success;
+            CustomUserModel user = await UserManager.FindByNameAsync(userEmail);
+            if (user == null)
+            {
+                return false;
+            }
+            else
+            {
+
+                result = UserManager.PasswordHasher.VerifyHashedPassword(user.Password, Password);
+
+
+                if (!(result == PasswordVerificationResult.Success))
+                {
+                    return false;
+                }
+                else
+                {
+                    await SignInAsync(user, IsPersistent);
+                    return true;
+                }
+            }
+            });
         }
 
         public enum ManageMessageId

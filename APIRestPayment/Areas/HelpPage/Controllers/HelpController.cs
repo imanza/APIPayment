@@ -1,6 +1,7 @@
 using System;
 using System.Web.Http;
 using System.Web.Mvc;
+using APIRestPayment.Areas.HelpPage.ModelDescriptions;
 using APIRestPayment.Areas.HelpPage.Models;
 
 namespace APIRestPayment.Areas.HelpPage.Controllers
@@ -10,6 +11,8 @@ namespace APIRestPayment.Areas.HelpPage.Controllers
     /// </summary>
     public class HelpController : Controller
     {
+        private string ErrorViewName = "Error";
+
         public HelpController()
             : this(GlobalConfiguration.Configuration)
         {
@@ -24,6 +27,7 @@ namespace APIRestPayment.Areas.HelpPage.Controllers
 
         public ActionResult Index()
         {
+            ViewBag.DocumentationProvider = Configuration.Services.GetDocumentationProvider();
             return View(Configuration.Services.GetApiExplorer().ApiDescriptions);
         }
 
@@ -38,7 +42,22 @@ namespace APIRestPayment.Areas.HelpPage.Controllers
                 }
             }
 
-            return View("Error");
+            return View(ErrorViewName);
+        }
+
+        public ActionResult ResourceModel(string modelName)
+        {
+            if (!String.IsNullOrEmpty(modelName))
+            {
+                ModelDescriptionGenerator modelDescriptionGenerator = Configuration.GetModelDescriptionGenerator();
+                ModelDescription modelDescription;
+                if (modelDescriptionGenerator.GeneratedModels.TryGetValue(modelName, out modelDescription))
+                {
+                    return View(modelDescription);
+                }
+            }
+
+            return View(ErrorViewName);
         }
     }
 }

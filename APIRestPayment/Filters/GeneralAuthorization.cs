@@ -41,25 +41,35 @@ namespace APIRestPayment.Filters
 
                     if (IsResourceOwner(userEmail, actionContext))
                     {
-                        //You can use Websecurity or asp.net memebrship provider to login, for
-                        //for he sake of keeping example simple, we used out own login functionality
-                        CASPaymentDTO.Domain.Users userQuery;
-                        if (this.CheckLogin(userEmail, password , out userQuery))
+
+                        Controllers.MemberController memberController = new Controllers.MemberController();
+
+
+                        if (memberController.CheckCredentialsValidity(userEmail, password, false).Result)
                         {
-                            String[] userRolesArray = new String[userQuery.UsersRolesS.Count];
-                            for (int i = 0; i < userQuery.UsersRolesS.Count; i++)
-			                {
-                                userRolesArray[i] = userQuery.UsersRolesS[i].RolesItem.RoleName;
-                            }
-                            var identity = new GenericIdentity(userQuery.Id.ToString());
-                            var principal = new GenericPrincipal(identity, userRolesArray);
-                            Thread.CurrentPrincipal = principal;
-                            if (HttpContext.Current != null)HttpContext.Current.User = principal;
                             this.lastTimeUnauthenticated = false;
-                            //var currentPrincipal = new GenericPrincipal(new GenericIdentity(userEmail) , null);
-                            //Thread.CurrentPrincipal = currentPrincipal;
                             return;
                         }
+
+                        //You can use Websecurity or asp.net memebrship provider to login, for
+                        //for he sake of keeping example simple, we used out own login functionality
+                        //CASPaymentDTO.Domain.Users userQuery;
+                        //if (this.CheckLogin(userEmail, password , out userQuery))
+                        //{
+                        //    //String[] userRolesArray = new String[userQuery.UsersRolesS.Count];
+                        //    //for (int i = 0; i < userQuery.UsersRolesS.Count; i++)
+                        //    //{
+                        //    //    userRolesArray[i] = userQuery.UsersRolesS[i].RolesItem.RoleName;
+                        //    //}
+                        //    //var identity = new GenericIdentity(userQuery.Id.ToString() , "Application");
+                        //    //var principal = new GenericPrincipal(identity, userRolesArray);
+                        //    //Thread.CurrentPrincipal = principal;
+                        //    //if (HttpContext.Current != null)HttpContext.Current.User = principal;
+
+                        //    //var currentPrincipal = new GenericPrincipal(new GenericIdentity(userEmail) , null);
+                        //    //Thread.CurrentPrincipal = currentPrincipal;
+                        //    //return
+                        //}
                     }
                 }
             }
@@ -116,13 +126,13 @@ namespace APIRestPayment.Filters
         {
             /// congigure NHibernate
             var nhConfig = new NHibernate.Cfg.Configuration().Configure();
-             auxilarySessionFactory = nhConfig.BuildSessionFactory();
+            auxilarySessionFactory = nhConfig.BuildSessionFactory();
 
-             var session = auxilarySessionFactory.OpenSession();
-             CurrentSessionContext.Bind(session);
+            var session = auxilarySessionFactory.OpenSession();
+            CurrentSessionContext.Bind(session);
         }
 
-        private bool CheckLogin(string userEmail, string password , out CASPaymentDTO.Domain.Users userEntity)
+        private bool CheckLogin(string userEmail, string password, out CASPaymentDTO.Domain.Users userEntity)
         {
             NHibernate.ISession session;
             bool sessionCreated = false;
@@ -133,14 +143,14 @@ namespace APIRestPayment.Filters
                 userHandler = new CASPaymentDAO.DataHandler.UsersDataHandler(this.auxilarySessionFactory);
                 sessionCreated = true;
             }
-            CASPaymentDTO.Domain.Users person = (userHandler.SelectAll().Cast<CASPaymentDTO.Domain.Users>().Where( s => s.Email == userEmail).FirstOrDefault());
+            CASPaymentDTO.Domain.Users person = (userHandler.SelectAll().Cast<CASPaymentDTO.Domain.Users>().Where(s => s.Email == userEmail).FirstOrDefault());
             if (person != null)
             {
                 // TODO correct the password check
                 //if (person.Password == password.GetHashCode())
                 if (person.Password.ToString() == password)
                 {
-                    if(sessionCreated)WebApiApplication.ChangeSession(this.auxilarySessionFactory);
+                    if (sessionCreated) WebApiApplication.ChangeSession(this.auxilarySessionFactory);
                     userEntity = person;
                     return true;
                 }

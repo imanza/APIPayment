@@ -214,16 +214,18 @@ namespace APIRestPayment.Models
                 ErrorMessage = "Incomplete Payment Data.";
                 return null;
             }
-            //TODO check for nonces and datetimes to prevent system exposed with REPLY ATTACK
+            //TODO check for nonces and datetimes to prevent system exposed with REPLAY ATTACK
             CASPaymentDTO.Domain.Transactions payment = new CASPaymentDTO.Domain.Transactions();
             try
             {
-                CASPaymentDTO.Domain.CurrencyType ct = currencyHandler.Search(new CASPaymentDTO.Domain.CurrencyType() { Name = paymentPOSTModel.Currency }).Cast<CASPaymentDTO.Domain.CurrencyType>().First();
-                CASPaymentDTO.Domain.TransactionType tt = transactionTypeHandler.Search(new CASPaymentDTO.Domain.TransactionType() { Name = paymentPOSTModel.TransactionType }).Cast<CASPaymentDTO.Domain.TransactionType>().First();
+                CASPaymentDTO.Domain.CurrencyType ct = currencyHandler.Search(new CASPaymentDTO.Domain.CurrencyType() { Charcode = paymentPOSTModel.Currency }).Cast<CASPaymentDTO.Domain.CurrencyType>().FirstOrDefault();
+                CASPaymentDTO.Domain.TransactionType tt = transactionTypeHandler.Search(new CASPaymentDTO.Domain.TransactionType() { Name = paymentPOSTModel.TransactionType }).Cast<CASPaymentDTO.Domain.TransactionType>().FirstOrDefault();
+                CASPaymentDTO.Domain.Account destAcc = accountHandler.Search(new CASPaymentDTO.Domain.Account() { Accountnumber = paymentPOSTModel.PayeeAccountNumber }).Cast<CASPaymentDTO.Domain.Account>().FirstOrDefault();
+                if (object.Equals(ct, default(CASPaymentDTO.Domain.CurrencyType)) || object.Equals(tt, default(CASPaymentDTO.Domain.TransactionType)) || object.Equals(destAcc, default(CASPaymentDTO.Domain.Account)))throw new System.Exception("Invalid data for transaction.");
                 payment.CurrencyTypeItem = ct;
                 payment.Amount = paymentPOSTModel.Amount;
                 payment.TransactionTypeItem = tt;
-                payment.DestinationAccountItem = accountHandler.Search(new CASPaymentDTO.Domain.Account() { Accountnumber = paymentPOSTModel.PayeeAccountNumber }).Cast<CASPaymentDTO.Domain.Account>().First();
+                payment.DestinationAccountItem = destAcc;
                 ErrorMessage = "";
                 return payment;
             }

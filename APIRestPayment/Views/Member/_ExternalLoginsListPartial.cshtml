@@ -15,7 +15,7 @@
     {
         string action = Model.Action;
         string returnUrl = Model.ReturnUrl;
-        using (Html.BeginForm(action, "Account", new { ReturnUrl = returnUrl }))
+        using (Html.BeginForm(action, "Member", new { ReturnUrl = returnUrl }))
         {
             @Html.AntiForgeryToken()
             <div id="socialLoginList">

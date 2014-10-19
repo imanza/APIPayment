@@ -37,8 +37,8 @@ namespace APIRestPayment
             {
                 AuthenticationType = "Application",
                 AuthenticationMode = AuthenticationMode.Passive,
-                LoginPath = new PathString("/Account/Login"),
-                LogoutPath = new PathString("/Account/Logout"),
+                LoginPath = new PathString("/Member/Login"),
+                LogoutPath = new PathString("/Member/Logout"),
             });
 
             //// Enable the External Sign In Cookie.
@@ -158,8 +158,10 @@ namespace APIRestPayment
 
             options.AuthorizationCodeProvider = new AuthenticationTokenProvider
             {
-                OnCreate = CreateAuthorizationCode,
-                OnReceive = ReceiveAuthorizationCode,
+                //OnCreate = CreateAuthorizationCode,
+                //OnReceive = ReceiveAuthorizationCode,
+                OnCreate = Controllers.OauthController.CreateAuthorizationCode,
+                OnReceive = Controllers.OauthController.ReceiveAuthorizationCode,
             };
 
 

@@ -19,15 +19,15 @@ namespace APIRestPayment
     {
         private static object syncRoot = new Object();
 
+        private static bool isSessionClosed;
         public static ISessionFactory SessionFactory
         {
             get;
             private set;
-        }
+        } 
 
         protected void Application_Start(object sender, EventArgs e)
-        {   
-            
+        {               
             //force Https
             //FilterConfig.RegisterHttpFilters(GlobalConfiguration.Configuration.Filters);
             
@@ -44,7 +44,8 @@ namespace APIRestPayment
             ///default settings
             AreaRegistration.RegisterAllAreas();
                         
-            WebApiConfig.Register(GlobalConfiguration.Configuration); 
+            //WebApiConfig.Register(GlobalConfiguration.Configuration); 
+            GlobalConfiguration.Configure(WebApiConfig.Register);
             FilterConfig.RegisterGlobalFilters(GlobalFilters.Filters);
             RouteConfig.RegisterRoutes(RouteTable.Routes);
             BundleConfig.RegisterBundles(BundleTable.Bundles);
@@ -54,10 +55,10 @@ namespace APIRestPayment
             SessionFactory = nhConfig.BuildSessionFactory();  
         }
 
-        protected void Session_Start(object sender, EventArgs e)
-        {
+        //protected void Session_Start(object sender, EventArgs e)
+        //{
 
-        }
+        //}
         protected void Application_BeginRequest(object sender, EventArgs e)
         {
                 //if (!HttpContext.Current.Request.IsSecureConnection)
@@ -70,19 +71,20 @@ namespace APIRestPayment
             {
                 var session = SessionFactory.OpenSession();
                 CurrentSessionContext.Bind(session);
+                isSessionClosed = false;
             }
         }
 
-        protected void Application_AuthenticateRequest(object sender, EventArgs e)
-        {
+        //protected void Application_AuthenticateRequest(object sender, EventArgs e)
+        //{
 
-        }
+        //}
 
-        protected void Application_Error(object sender, EventArgs e)
-        {
-            
-           // Application_BeginRequest(sender, e);
-        }
+        //protected void Application_Error(object sender, EventArgs e)
+        //{
+
+        //    // Application_BeginRequest(sender, e);
+        //}
 
         protected void Session_End(object sender, EventArgs e)
         {
@@ -93,6 +95,7 @@ namespace APIRestPayment
             try
             {
                 var session = CurrentSessionContext.Unbind(SessionFactory);
+                isSessionClosed = true;
                 session.Dispose();
             }
             catch (Exception ex)
@@ -103,7 +106,8 @@ namespace APIRestPayment
 
         protected void Application_EndRequest(object sender, EventArgs e)
         {
-            var session = CurrentSessionContext.Unbind(SessionFactory);            
+            var session = CurrentSessionContext.Unbind(SessionFactory);
+            isSessionClosed = true;
         }
         public static void RegisterRoute(RouteCollection routes)
         {
