@@ -16,7 +16,7 @@ namespace APIRestPayment
     // visit http://go.microsoft.com/?LinkId=9394801
 
     public class WebApiApplication : System.Web.HttpApplication
-    {
+    { 
         private static object syncRoot = new Object();
 
         private static bool isSessionClosed;

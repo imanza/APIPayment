@@ -190,7 +190,7 @@
     </Reference>
     <Reference Include="Newtonsoft.Json, Version=6.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\packages\Newtonsoft.Json.6.0.5\lib\net45\Newtonsoft.Json.dll</HintPath>
+      <HintPath>..\packages\Newtonsoft.Json.6.0.4\lib\net45\Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="NHibernate, Version=4.0.0.4000, Culture=neutral, PublicKeyToken=aa95f207798dfdb4, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
@@ -225,9 +225,8 @@
       <HintPath>..\packages\System.Spatial.5.6.2\lib\net40\System.Spatial.dll</HintPath>
     </Reference>
     <Reference Include="System.Transactions" />
-    <Reference Include="System.Web.Cors, Version=5.2.2.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\packages\Microsoft.AspNet.Cors.5.2.2\lib\net45\System.Web.Cors.dll</HintPath>
+    <Reference Include="System.Web.Cors">
+      <HintPath>..\packages\Microsoft.AspNet.Cors.5.0.0\lib\net45\System.Web.Cors.dll</HintPath>
     </Reference>
     <Reference Include="System.Web.Entity" />
     <Reference Include="System.Web.ApplicationServices" />
@@ -351,6 +350,7 @@
     <Compile Include="Constants\Paths.cs" />
     <Compile Include="Constants\QueryStringFuncs.cs" />
     <Compile Include="Constants\RoleTypes.cs" />
+    <Compile Include="Controllers\JaldaController.cs" />
     <Compile Include="Controllers\MemberController.cs" />
     <Compile Include="Controllers\AccountOwnershipController.cs" />
     <Compile Include="Controllers\AccountsController.cs" />
@@ -379,6 +379,8 @@
     <Compile Include="Models\PaginationModel.cs" />
     <Compile Include="Models\PaymentModel.cs" />
     <Compile Include="Models\POSTModels\AccountPOSTModel.cs" />
+    <Compile Include="Models\POSTModels\JaldaThickPOSTModel.cs" />
+    <Compile Include="Models\POSTModels\JaldaContractPOSTModel.cs" />
     <Compile Include="Models\POSTModels\PaymentPOSTModel.cs" />
     <Compile Include="Models\QueryResponseModel.cs" />
     <Compile Include="Models\RealPersonModel.cs" />
@@ -387,10 +389,6 @@
     <Compile Include="Models\WebPageModels\SalesPageModel.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Startup.cs" />
-    <Compile Include="Views\Sales\WebServiceAjax.asmx.cs">
-      <DependentUpon>WebServiceAjax.asmx</DependentUpon>
-      <SubType>Component</SubType>
-    </Compile>
   </ItemGroup>
   <ItemGroup>
     <Content Include="Areas\HelpPage\HelpPage.css" />
@@ -451,7 +449,6 @@
     <Content Include="Images\banner\bg-signin.jpg" />
     <Content Include="Images\Loader.gif" />
     <Content Include="Scripts\angular.min.js" />
-    <Content Include="Views\Sales\WebServiceAjax.asmx" />
     <None Include="Scripts\jquery-2.1.1.intellisense.js" />
     <Content Include="Scripts\jquery-2.1.1.min.js" />
     <Content Include="Scripts\jquery-ui-1.11.1.js" />

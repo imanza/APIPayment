@@ -8,6 +8,7 @@ using System.Net.Http;
 using System.Security.Principal;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Web;
 using System.Web.Http.Filters;
 
@@ -31,7 +32,7 @@ namespace APIRestPayment.Filters
             var authHeader = actionContext.Request.Headers.Authorization;
 
             if (authHeader != null)
-            {
+            { 
                 if (authHeader.Scheme.Equals("basic", StringComparison.OrdinalIgnoreCase) &&
                 !String.IsNullOrWhiteSpace(authHeader.Parameter))
                 {
@@ -41,15 +42,19 @@ namespace APIRestPayment.Filters
 
                     if (IsResourceOwner(userEmail, actionContext))
                     {
+                        Task.Run(async () =>
+                        {
+                        
 
                         Controllers.MemberController memberController = new Controllers.MemberController();
 
 
-                        if (memberController.CheckCredentialsValidity(userEmail, password, false).Result)
+                        if (await memberController.CheckCredentialsValidity(userEmail, password, false))
                         {
                             this.lastTimeUnauthenticated = false;
                             return;
                         }
+                        });
 
                         //You can use Websecurity or asp.net memebrship provider to login, for
                         //for he sake of keeping example simple, we used out own login functionality

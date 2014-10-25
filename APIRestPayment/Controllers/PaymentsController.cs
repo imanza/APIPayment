@@ -114,7 +114,7 @@ namespace APIRestPayment.Controllers
                     //response.Headers.Location = new Uri( , UriKind.Relative);
                     return response;
                 }
-                else if (paymodel.TransactionType == "حواله")
+                else if (paymodel.TransactionType == TransactionTypes.Transfer)
                 {
                     //TODO implement transfer
 
@@ -277,7 +277,6 @@ namespace APIRestPayment.Controllers
                  bool result = false;
                  if (!object.Equals(account, default(CASPaymentDTO.Domain.Account)))
                  {
-
                      if (Amount < account.Balance) result = true;
                  }
                  return result;

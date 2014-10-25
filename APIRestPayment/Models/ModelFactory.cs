@@ -257,5 +257,11 @@ namespace APIRestPayment.Models
             return null;
         }
 
+
+        internal CASPaymentDTO.Domain.JaldaContract Parse(JaldaContractPOSTModel jaldaPOSTModel, out string ParseErrorMessage)
+        {
+            
+            throw new NotImplementedException();
+        }
     }
 }
