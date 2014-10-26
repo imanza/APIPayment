@@ -46,8 +46,8 @@ namespace APIRestPayment
 
             config.Routes.MapHttpRoute(
             name: "Jalda",
-            routeTemplate: "api/payments/jalda/{contractID}",
-            defaults: new { controller = "jalda", contractID = RouteParameter.Optional }
+            routeTemplate: "api/jalda/{contractID}",
+            defaults: new { controller = "Jalda", contractID = RouteParameter.Optional }
             );
             // Uncomment the following line of code to enable query support for actions with an IQueryable or IQueryable<T> return type.
             // To avoid processing unexpected or malicious queries, use the validation settings on QueryableAttribute to validate incoming queries.

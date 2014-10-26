@@ -10,7 +10,6 @@ namespace APIRestPayment.Models.POSTModels
         public long? JaldaContractID { set; get; }
         public string JaldaThickType  { set; get; }
         public uint? SerialNumber  { set; get; }
-        public DateTime? SubmitDateTime { set; get; }
         public string OrderNumber { set; get; }
     }
 }

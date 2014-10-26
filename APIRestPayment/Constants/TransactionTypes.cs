@@ -10,6 +10,7 @@ namespace APIRestPayment.Constants
         public const string Purchase = "Purchase";
         public const string Transfer = "Transfer";
         public const string Jalda = "Jalda";
+        public const string Deposit = "Deposit";
         public const string Fees = "Fees";
     }
 

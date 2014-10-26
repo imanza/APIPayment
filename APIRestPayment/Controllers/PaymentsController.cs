@@ -265,7 +265,7 @@ namespace APIRestPayment.Controllers
 
                 }
                 return result;
-            });
+            }).ConfigureAwait(false);
             return res == Microsoft.AspNet.Identity.PasswordVerificationResult.Success;
         }
 
@@ -280,7 +280,7 @@ namespace APIRestPayment.Controllers
                      if (Amount < account.Balance) result = true;
                  }
                  return result;
-             });
+             }).ConfigureAwait(false);
         }
 
         public async Task<bool> CheckUpperLimit(CASPaymentDTO.Domain.Account PayerAccount, Decimal Amount, string TransactionType)
@@ -297,7 +297,7 @@ namespace APIRestPayment.Controllers
                     if (spentMoneyOnTodayTransactions + Amount < upperLimitDecimal) result = true;
                 }
                 return result;
-            });
+            }).ConfigureAwait(false);
         }
 
         private decimal GetSpentMonetOnTodaysTransactions(CASPaymentDTO.Domain.AccountDailyActivity accountDailyActivity, string TransactionType)

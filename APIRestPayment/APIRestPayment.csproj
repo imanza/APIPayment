@@ -344,6 +344,7 @@
     <Compile Include="Areas\HelpPage\SampleGeneration\SampleDirection.cs" />
     <Compile Include="Areas\HelpPage\SampleGeneration\TextSample.cs" />
     <Compile Include="Areas\HelpPage\XmlDocumentationProvider.cs" />
+    <Compile Include="Constants\PaymentSystemConstants.cs" />
     <Compile Include="Constants\TransactionTypes.cs" />
     <Compile Include="Constants\DataAccessTypes.cs" />
     <Compile Include="Constants\DateFuncs.cs" />
@@ -373,6 +374,7 @@
     <Compile Include="Models\AuthorizationModels\CustomUserModel.cs" />
     <Compile Include="Models\AuthorizationModels\UserStoreModel.cs" />
     <Compile Include="Models\BankAccountModel.cs" />
+    <Compile Include="Models\JaldaThickModel.cs" />
     <Compile Include="Models\LegalPersonModel.cs" />
     <Compile Include="Models\MetaModel.cs" />
     <Compile Include="Models\ModelFactory.cs" />

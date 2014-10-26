@@ -17,6 +17,7 @@ namespace APIRestPayment.Models
         private CASPaymentDAO.DataHandler.UsersDataHandler userHandler = new CASPaymentDAO.DataHandler.UsersDataHandler(WebApiApplication.SessionFactory);
         private CASPaymentDAO.DataHandler.TransactionTypeDataHandler transactionTypeHandler = new CASPaymentDAO.DataHandler.TransactionTypeDataHandler(WebApiApplication.SessionFactory);
         private CASPaymentDAO.DataHandler.AccountDataHandler accountHandler = new CASPaymentDAO.DataHandler.AccountDataHandler(WebApiApplication.SessionFactory);
+        private CASPaymentDAO.DataHandler.JaldaContractDataHandler jaldaContractHandler = new CASPaymentDAO.DataHandler.JaldaContractDataHandler(WebApiApplication.SessionFactory);
         public ModelFactory(HttpRequestMessage request)
         {
             _UrlHelper = new System.Web.Http.Routing.UrlHelper(request);
@@ -29,7 +30,7 @@ namespace APIRestPayment.Models
 
         public PaymentModel Create(CASPaymentDTO.Domain.Transactions transaction)
         {
-            if (transaction == null) throw new NullReferenceException();
+            if (transaction == null) throw new NullReferenceException("transaction");
 
             AccountModel source = null;
             if ((bool)transaction.Showsender) source = this.CreateWithoutCircularReference(transaction.SourceAccountItem);
@@ -37,7 +38,7 @@ namespace APIRestPayment.Models
             return new PaymentModel()
             {
                 Url = _UrlHelper.Link("Payments", new { id = transaction.Id }),
-                Trackingnumber = transaction.Id.ToString(),
+                Trackingnumber = transaction.Trackingnumber,
                 ExecutionDate =DateFuncs.ToShamsiCal( transaction.Executiondatetime),
                 SourceAccount = source,
                 DestinationAccount = this.CreateWithoutCircularReference(transaction.DestinationAccountItem),
@@ -102,6 +103,22 @@ namespace APIRestPayment.Models
                 //////////
             }
             return result;
+        }
+
+        public Models.JaldaThickModel Create(CASPaymentDTO.Domain.JaldaTicks jaldaThick)
+        {
+            if (jaldaThick == null) throw new NullReferenceException();
+            return new JaldaThickModel
+            {
+                Id = jaldaThick.Id,
+                JaldaContractID = jaldaThick.JaldaContractItem.Id,
+                JaldaThickType = jaldaThick.Type,
+                OrderNumber = jaldaThick.Ordernumber,
+                SerialNumber = jaldaThick.Serialnumber,
+                SubmitDateTime = jaldaThick.SubmissionDateTime,
+            };
+
+            
         }
 
         #endregion
@@ -262,6 +279,19 @@ namespace APIRestPayment.Models
         {
             
             throw new NotImplementedException();
+        }
+
+        internal CASPaymentDTO.Domain.JaldaTicks Parse(JaldaThickPOSTModel jaldaThickPOSTModel, out string ErrorMessage)
+        {
+
+            CASPaymentDTO.Domain.JaldaTicks jaldaThick = new CASPaymentDTO.Domain.JaldaTicks();
+            jaldaThick.JaldaContractItem = jaldaContractHandler.GetEntity((long)jaldaThickPOSTModel.JaldaContractID);
+            jaldaThick.Ordernumber = jaldaThickPOSTModel.OrderNumber;
+            jaldaThick.Serialnumber = jaldaThickPOSTModel.SerialNumber;
+            jaldaThick.Type = jaldaThickPOSTModel.JaldaThickType;
+            jaldaThick.SubmissionDateTime = DateTime.UtcNow;
+            ErrorMessage = "";
+            return jaldaThick;
         }
     }
 }
