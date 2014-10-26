@@ -269,6 +269,9 @@ namespace APIRestPayment.Controllers
             return res == Microsoft.AspNet.Identity.PasswordVerificationResult.Success;
         }
 
+        //Task<bool> balanceCheckDelegate(CASPaymentDTO.Domain.Account PayerAccount, Decimal Amount);
+
+        
         public async Task<bool> CheckBalance(CASPaymentDTO.Domain.Account PayerAccount, Decimal Amount)
         {
             return await Task.Run(() =>
@@ -417,6 +420,7 @@ namespace APIRestPayment.Controllers
             reverseTransaction.DestinationAccountItem = mainTransaction.SourceAccountItem;
             reverseTransaction.SourceAccountItem = mainTransaction.DestinationAccountItem;
             reverseTransaction.TransactionTypeItem = mainTransaction.TransactionTypeItem;
+            reverseTransaction.Description = mainTransaction.Description;
             return reverseTransaction;
         }
 

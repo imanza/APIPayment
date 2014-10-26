@@ -114,7 +114,7 @@ namespace APIRestPayment.Models
                 JaldaContractID = jaldaThick.JaldaContractItem.Id,
                 JaldaThickType = jaldaThick.Type,
                 OrderNumber = jaldaThick.Ordernumber,
-                SerialNumber = jaldaThick.Serialnumber,
+                SerialNumber =(uint) jaldaThick.Serialnumber,
                 SubmitDateTime = jaldaThick.SubmissionDateTime,
             };
 
@@ -287,7 +287,7 @@ namespace APIRestPayment.Models
             CASPaymentDTO.Domain.JaldaTicks jaldaThick = new CASPaymentDTO.Domain.JaldaTicks();
             jaldaThick.JaldaContractItem = jaldaContractHandler.GetEntity((long)jaldaThickPOSTModel.JaldaContractID);
             jaldaThick.Ordernumber = jaldaThickPOSTModel.OrderNumber;
-            jaldaThick.Serialnumber = jaldaThickPOSTModel.SerialNumber;
+            jaldaThick.Serialnumber = (int) jaldaThickPOSTModel.SerialNumber;
             jaldaThick.Type = jaldaThickPOSTModel.JaldaThickType;
             jaldaThick.SubmissionDateTime = DateTime.UtcNow;
             ErrorMessage = "";
