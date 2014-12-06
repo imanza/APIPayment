@@ -49,7 +49,7 @@
     </Reference>
     <Reference Include="CASPaymentDTO, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\..\..\GitProjects\CASPayment\DAL\01 2 Aug 2014 DTO DAO\DLLs\CASPaymentDTO.dll</HintPath>
+      <HintPath>..\..\..\CASPayment\DAL\01 2 Aug 2014 DTO DAO\DLLs\CASPaymentDTO.dll</HintPath>
     </Reference>
     <Reference Include="Castle.Core, Version=1.1.0.0, Culture=neutral, PublicKeyToken=407dd0808d44fbdc, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
@@ -383,6 +383,7 @@
     <Compile Include="Models\AuthorizationModels\CustomUserModel.cs" />
     <Compile Include="Models\AuthorizationModels\UserStoreModel.cs" />
     <Compile Include="Models\BankAccountModel.cs" />
+    <Compile Include="Models\JaldaThickResponseModel.cs" />
     <Compile Include="Models\JaldaThickModel.cs" />
     <Compile Include="Models\LegalPersonModel.cs" />
     <Compile Include="Models\MetaModel.cs" />

@@ -23,7 +23,7 @@ namespace APIRestPayment.AuthorizationModels
             await Task.Run(() =>
                 {
                     usersHandler.Save(user);
-                });
+                }).ConfigureAwait(false);
         }
 
         public async System.Threading.Tasks.Task DeleteAsync(CustomUserModel user)
@@ -31,7 +31,7 @@ namespace APIRestPayment.AuthorizationModels
             await Task.Run(() =>
             {
                 usersHandler.Delete(user);
-            });
+            }).ConfigureAwait(false);
         }
 
         public async System.Threading.Tasks.Task<CustomUserModel> FindByIdAsync(string userId)
@@ -39,8 +39,8 @@ namespace APIRestPayment.AuthorizationModels
            CASPaymentDTO.Domain.Users user = await Task.Run(() =>
             {
                 long convertedID = Convert.ToInt64(userId);
-                return usersHandler.GetEntity(convertedID);   
-            });
+                return usersHandler.GetEntity(convertedID);
+            }).ConfigureAwait(false);
            return new CustomUserModel(user);
         }
 
@@ -49,7 +49,7 @@ namespace APIRestPayment.AuthorizationModels
             CASPaymentDTO.Domain.Users user = await Task.Run(() =>
             {
                 return usersHandler.Search(new CASPaymentDTO.Domain.Users { Email = userName }).Cast<CASPaymentDTO.Domain.Users>().FirstOrDefault();
-            });
+            }).ConfigureAwait(false);
             return new CustomUserModel(user);
         }
 
@@ -58,7 +58,7 @@ namespace APIRestPayment.AuthorizationModels
             await Task.Run(() =>
             {
                 usersHandler.Update(user);
-            });
+            }).ConfigureAwait(false);
         }
 
         public void Dispose()
@@ -72,7 +72,7 @@ namespace APIRestPayment.AuthorizationModels
             {
                 string pp = user.Password.ToString();
                 return pp;
-            });
+            }).ConfigureAwait(false);
              string base64hashpassword = Convert.ToBase64String(Encoding.UTF8.GetBytes(temp));
              return  base64hashpassword ;
         }
@@ -82,7 +82,7 @@ namespace APIRestPayment.AuthorizationModels
             return await Task.Run(() =>
             {
                 return string.IsNullOrEmpty(user.Password.ToString());
-            }); 
+            }).ConfigureAwait(false); 
         }
 
         public async Task SetPasswordHashAsync(CustomUserModel user, string passwordHash)
@@ -91,7 +91,7 @@ namespace APIRestPayment.AuthorizationModels
             {
                 user.Password = passwordHash;
                 usersHandler.Update(user);
-            }); 
+            }).ConfigureAwait(false); 
         }
     }
 }

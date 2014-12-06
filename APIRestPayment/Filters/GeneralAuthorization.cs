@@ -1,5 +1,6 @@
 ﻿using NHibernate;
 using NHibernate.Context;
+using Nito.AsyncEx;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -29,6 +30,15 @@ namespace APIRestPayment.Filters
             //    return;
             //}
 
+            //check if the user is authenticated before
+            var authentication = System.Web.HttpContextExtensions.GetOwinContext(HttpContext.Current).Authentication;
+            var ticket = authentication.AuthenticateAsync("Application").Result;
+            var identity = ticket != null ? ticket.Identity : null;
+            if (identity != null && identity.IsAuthenticated)
+            {
+                return;
+            }
+
             var authHeader = actionContext.Request.Headers.Authorization;
 
             if (authHeader != null)
@@ -42,19 +52,14 @@ namespace APIRestPayment.Filters
 
                     if (IsResourceOwner(userEmail, actionContext))
                     {
-                        Task.Run(async () =>
-                        {
-                        
+                        Controllers.MemberController memberController = new Controllers.MemberController(HttpContext.Current);
 
-                        Controllers.MemberController memberController = new Controllers.MemberController();
-
-
-                        if (await memberController.CheckCredentialsValidity(userEmail, password, false))
+                        if (AsyncContext.Run(() => memberController.CheckCredentialsValidity(userEmail, password, false)))
                         {
                             this.lastTimeUnauthenticated = false;
                             return;
                         }
-                        });
+
 
                         //You can use Websecurity or asp.net memebrship provider to login, for
                         //for he sake of keeping example simple, we used out own login functionality

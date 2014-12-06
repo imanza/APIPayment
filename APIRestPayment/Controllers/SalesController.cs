@@ -76,7 +76,7 @@ namespace APIRestPayment.Controllers
                 if (!await paymentController.CheckAccountAndPINCode(PayerAccount, model.PINCode))
                 {
                     //PIN is incorrect
-                    paymentResult = "Incorrect Pin";
+                    paymentResult = "Error: Incorrect Pin";
                 }
                 else if (!await paymentController.CheckBalance(PayerAccount, (Decimal)PaymentPOSTModel.Amount))
                 {

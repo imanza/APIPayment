@@ -9,6 +9,8 @@ using System.Web.Http.Routing;
 using APIRestPayment.Constants;
 using System.Collections;
 using System.Threading.Tasks;
+using System.Security.Claims;
+using System.Web;
 
 
 
@@ -19,6 +21,7 @@ namespace APIRestPayment.Controllers
     {
         #region Handlers
 
+        CASPaymentDAO.DataHandler.UsersDataHandler usersHandler = new CASPaymentDAO.DataHandler.UsersDataHandler(WebApiApplication.SessionFactory);
         CASPaymentDAO.DataHandler.TransactionsDataHandler transactionHandler = new CASPaymentDAO.DataHandler.TransactionsDataHandler(WebApiApplication.SessionFactory);
         CASPaymentDAO.DataHandler.AccountDataHandler accountHandler = new CASPaymentDAO.DataHandler.AccountDataHandler(WebApiApplication.SessionFactory);
         CASPaymentDAO.DataHandler.SettingDataDataHandler settingDataHandler = new CASPaymentDAO.DataHandler.SettingDataDataHandler(WebApiApplication.SessionFactory);
@@ -27,22 +30,90 @@ namespace APIRestPayment.Controllers
 
         #endregion
 
+        #region Access
+
+        public override DataAccessTypes CurrentUserAccessType
+        {
+            get
+            {
+                //My own logic to check whether user has rights to access the transaction
+                if (base.CurrentUserAccessType == DataAccessTypes.Administrator) return DataAccessTypes.Administrator;
+                else
+                {
+                    var routeData = Request.GetRouteData();
+                    var resourceID = routeData.Values["id"] as string;
+                    //
+                    var authentication = System.Web.HttpContextExtensions.GetOwinContext(HttpContext.Current).Authentication;
+                    var ticket = authentication.AuthenticateAsync("Application").Result;
+                    var identity = ticket != null ? ticket.Identity : null;
+                    if (identity != null)
+                    {
+                        var ss = identity.Claims.Where(x => x.Type == ClaimTypes.NameIdentifier).FirstOrDefault().Value;
+                        long currentUserId;
+                        if (long.TryParse(ss , out currentUserId))
+                        {
+                            CASPaymentDTO.Domain.Users currentUser = usersHandler.GetEntity(currentUserId);
+                            foreach (var item in currentUser.AccountS)
+                            {
+                                if (item.DestinationTransactionsS.Where(x => x.Id.ToString() == resourceID).Count() > 0)
+                                {
+                                    return DataAccessTypes.Owner;
+                                }
+                            }
+                        }
+                    }
+                }
+                    /////////////////////////////
+                    return DataAccessTypes.Anonymous;
+                }
+        }
+
+        #endregion
+
         #region GET
 
-        [Filters.GeneralAuthorization]
-        public HttpResponseMessage GetPayment(long id)
+        
+    [Filters.GeneralAuthorization]
+    public HttpResponseMessage GetPayment(long id)
         {
             try
             {
-                CASPaymentDTO.Domain.Transactions searchedTransaction = this.transactionHandler.GetEntity(id);
-                return Request.CreateResponse(HttpStatusCode.OK, new Models.QueryResponseModel
+                CASPaymentDTO.Domain.Transactions searchedTransaction= searchedTransaction = this.transactionHandler.GetEntity(id);
+                //if (id != null)
+                //{
+                   
+                //}
+                //else
+                //{
+                //    long g = GetIdofCurrentUser();
+                //    searchedTransaction = this.transactionHandler.Search(new CASPaymentDTO.Domain.Transactions{Trackingnumber = trackingNumber}).
+                //        Cast<CASPaymentDTO.Domain.Transactions>().Where(x =>
+                //         string   
+                //        );
+                //}
+                DataAccessTypes currentRequest = CurrentUserAccessType;
+                if (currentRequest != DataAccessTypes.Anonymous)
                 {
-                    meta = new Models.MetaModel
+                    return Request.CreateResponse(HttpStatusCode.OK, new Models.QueryResponseModel
                     {
-                        code = (int)HttpStatusCode.OK
-                    },
-                    data = TheModelFactory.Create(searchedTransaction)
-                });
+                        meta = new Models.MetaModel
+                        {
+                            code = (int)HttpStatusCode.OK
+                        },
+                        data = TheModelFactory.Create(searchedTransaction)
+                    });
+                }
+                else
+                {
+                    return Request.CreateResponse(HttpStatusCode.Unauthorized, new Models.QueryResponseModel
+                    {
+                        meta = new Models.MetaModel
+                        {
+                            code = (int)HttpStatusCode.Unauthorized,
+                            errorMessage = "Cannot access requested resource"
+                        }
+                    });
+                }
             }
             catch (NHibernate.ObjectNotFoundException)
             {
@@ -55,13 +126,114 @@ namespace APIRestPayment.Controllers
                     }
                 });
             }
+        }    
+
+        private long GetIdofCurrentUser()
+        {
+            var identity = GetClaimsIdentityofCurrentUser();
+            if (identity != null)
+            {
+                var currentuserIdstring = identity.Claims.Where(c => c.Type == ClaimTypes.NameIdentifier).Select(c => c.Value).FirstOrDefault();
+                long currentUserId;
+                if (long.TryParse(currentuserIdstring, out currentUserId))
+                {
+                    return currentUserId;
+                }
+            }
+            return -1;
+        }
+        private long GetIdofCurrentUser(ClaimsIdentity identity)
+        {
+            if (identity != null)
+            {
+                var currentuserIdstring = identity.Claims.Where(c => c.Type == ClaimTypes.NameIdentifier).Select(c => c.Value).FirstOrDefault();
+                long currentUserId;
+                if (long.TryParse(currentuserIdstring, out currentUserId))
+                {
+                    return currentUserId;
+                }
+            }
+            return -1;
+        }
+
+        private System.Security.Claims.ClaimsIdentity GetClaimsIdentityofCurrentUser()
+        {
+            var authentication = System.Web.HttpContextExtensions.GetOwinContext(HttpContext.Current).Authentication;
+            var ticket = authentication.AuthenticateAsync("Application").Result;
+            var identity = ticket != null ? ticket.Identity : null;
+            if (identity != null)
+            {
+                return identity;
+            }
+            return null;
         }
 
         [Filters.GeneralAuthorization]
-        public HttpResponseMessage Get(int page = 0, int pageSize = 10)
+        public HttpResponseMessage Get(int page = 0, int pageSize = 10 ,string trackingNumber="", string startDate="", string endDate="")
         {
+            IList<CASPaymentDTO.Domain.Transactions> result = new List<CASPaymentDTO.Domain.Transactions>();
+            if (CurrentUserAccessType != DataAccessTypes.Administrator)
+            {
+                var identity = this.GetClaimsIdentityofCurrentUser();
+                if (identity == null)
+                {
+                    return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
+                    {
+                        meta = new Models.MetaModel
+                        {
+                            code = (int)HttpStatusCode.BadRequest,
+                            errorMessage = "The Identity of the user is not known"
+                        }
+                    });
+                }
+                else
+                {
+                    bool isTrackingNumberParamNull = string.IsNullOrEmpty(trackingNumber);
+                    bool isStartDateParamNull = string.IsNullOrEmpty(startDate);
+                    bool isEndDateParamNull = string.IsNullOrEmpty(endDate);
 
-            IList<CASPaymentDTO.Domain.Transactions> result = this.transactionHandler.SelectAll().Cast<CASPaymentDTO.Domain.Transactions>().ToList();
+                    long currentUserId = GetIdofCurrentUser(identity);
+                    if (currentUserId != -1)
+                    {
+                        foreach (var item in usersHandler.GetEntity(currentUserId).AccountS)
+                        {
+
+                            result = result.Concat(item.DestinationTransactionsS.Where(x => x.TransactionTypeItem.NameEn != TransactionTypes.Deposit)).ToList();
+                            
+                            //&&
+                            //    ( ( string.IsNullOrEmpty(trackingNumber)  (!string.IsNullOrEmpty(trackingNumber) && x.Trackingnumber == trackingNumber))
+                            //     (!string.IsNullOrEmpty(startDate) && x.Executiondatetime >= DateFuncs.ToGregorianDate(DateFuncs.ConvertStringToDate(startDate))) 
+
+                            //    )
+                                
+                        }
+                        if (!(isTrackingNumberParamNull && isStartDateParamNull && isEndDateParamNull))
+                        {
+                            result = result.Where(x =>
+                                (isTrackingNumberParamNull || (!isTrackingNumberParamNull && x.Trackingnumber == trackingNumber)) &&
+                                (isStartDateParamNull || (!isStartDateParamNull && x.Executiondatetime >= DateFuncs.ToGregorianDate(DateFuncs.ConvertStringToDate(startDate)))) &&
+                                (isEndDateParamNull || (!isEndDateParamNull && x.Executiondatetime <= DateFuncs.ToGregorianDate(DateFuncs.ConvertStringToDate(endDate)))) 
+                                ).ToList();
+                        }
+                        result = result.OrderBy(x => x.Executiondatetime).OrderBy(x => x.Id).ToList();
+                    }
+                    else
+                    {
+                        return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
+                        {
+                            meta = new Models.MetaModel
+                            {
+                                code = (int)HttpStatusCode.BadRequest,
+                                errorMessage = "Bad Identity set for user"
+                            }
+                        });
+                    }
+                }
+            }
+            else
+            {
+                result = this.transactionHandler.SelectAll().Cast<CASPaymentDTO.Domain.Transactions>().ToList();
+            }
             //////////////////////////////////////////////////
             var totalCount = result.Count();
             var totalPages = (int)Math.Ceiling((double)totalCount / pageSize);
@@ -108,8 +280,8 @@ namespace APIRestPayment.Controllers
 
                     string fullyQualifiedUrl = Request.RequestUri.GetLeftPart(UriPartial.Authority); // (http://localhost)
                     string Salesurl = fullyQualifiedUrl + "/" + Request.RequestUri.Segments[1] + "/Sales/SalesLaunch";
-                    string[] Requestparams = { "paymentModelJSON" , "returnUrl" };
-                    string[] Requestvalues = { PaymentPOSTModelJson , paymodel.RedirectUrl};
+                    string[] Requestparams = { "paymentModelJSON", "returnUrl" };
+                    string[] Requestvalues = { PaymentPOSTModelJson, paymodel.RedirectUrl };
                     response.Headers.Location = new Uri(QueryStringFuncs.GenerateRequestStringAsync(Salesurl, Requestparams, Requestvalues));
                     //response.Headers.Location = new Uri( , UriKind.Relative);
                     return response;
@@ -268,10 +440,13 @@ namespace APIRestPayment.Controllers
             }).ConfigureAwait(false);
             return res == Microsoft.AspNet.Identity.PasswordVerificationResult.Success;
         }
-
-        //Task<bool> balanceCheckDelegate(CASPaymentDTO.Domain.Account PayerAccount, Decimal Amount);
-
-        
+        /// <summary>
+        /// Compares the balance of the "PayerAccount" with "Amount" and returns a bool indicating whether amount could be taken from this account.
+        /// </summary>
+        /// <param name="PayerAccount">The Account Item of Payer</param>
+        /// <param name="Amount">
+        /// <typeparamref name="Decimal"/> Amount of payment</param>
+        /// <returns>bool</returns>
         public async Task<bool> CheckBalance(CASPaymentDTO.Domain.Account PayerAccount, Decimal Amount)
         {
             return await Task.Run(() =>
@@ -323,20 +498,20 @@ namespace APIRestPayment.Controllers
         {
             string trackingNumber = GenerateUniqueTrackingNumber(payerTransaction.DestinationAccountItem.Accountnumber, payerTransaction.SourceAccountItem.Accountnumber);
             CASPaymentDTO.Domain.Transactions payeeTransaction = ReverseTransaction(payerTransaction);
-            
+
             ///////Assign Tracking Number
             payerTransaction.Trackingnumber = trackingNumber;
             payeeTransaction.Trackingnumber = trackingNumber;
-            
+
             //////Account Read
             CASPaymentDTO.Domain.Account payerAccount = payerTransaction.DestinationAccountItem;
             CASPaymentDTO.Domain.Account payeeAccount = payeeTransaction.DestinationAccountItem;
-            
+
             /////Assign Execution Date 
             DateTime ExecutionDateTime = DateTime.UtcNow;
             payerTransaction.Executiondatetime = ExecutionDateTime;
             payeeTransaction.Executiondatetime = ExecutionDateTime;
-            
+
             /////Assign Current Balance
             payerTransaction.CurrentBalance = payerAccount.Balance + payerTransaction.Amount;
             payeeTransaction.CurrentBalance = payeeAccount.Balance + payeeTransaction.Amount;
@@ -347,7 +522,7 @@ namespace APIRestPayment.Controllers
 
             /////Assign Daily Activity For Current Purchase To Payer
             bool hasDailyActivity = false;
-            CASPaymentDTO.Domain.AccountDailyActivity accountDailyActivityForPayer = GetPayerTodayActivity(payerAccount,payerTransaction.TransactionTypeItem.NameEn ,(Decimal) payerTransaction.Amount, out hasDailyActivity );
+            CASPaymentDTO.Domain.AccountDailyActivity accountDailyActivityForPayer = GetPayerTodayActivity(payerAccount, payerTransaction.TransactionTypeItem.NameEn, (Decimal)payerTransaction.Amount, out hasDailyActivity);
 
 
 
@@ -389,12 +564,12 @@ namespace APIRestPayment.Controllers
             return "Success";
         }
 
-        private CASPaymentDTO.Domain.AccountDailyActivity GetPayerTodayActivity(CASPaymentDTO.Domain.Account payerAccount, string TransactionType , Decimal AmountToPay, out bool hasDailyActivity)
-        {   
+        private CASPaymentDTO.Domain.AccountDailyActivity GetPayerTodayActivity(CASPaymentDTO.Domain.Account payerAccount, string TransactionType, Decimal AmountToPay, out bool hasDailyActivity)
+        {
             Decimal ABSAmountToPay = Math.Abs(AmountToPay);
             if (payerAccount.AccountDailyActivityS.Count == 0)
             {
-                hasDailyActivity = false;                
+                hasDailyActivity = false;
                 CASPaymentDTO.Domain.AccountDailyActivity newAccountActivity = new CASPaymentDTO.Domain.AccountDailyActivity();
                 newAccountActivity.AccountItem = payerAccount;
                 newAccountActivity.JaldaAmount = (TransactionType == TransactionTypes.Jalda) ? ABSAmountToPay : 0;
@@ -424,9 +599,9 @@ namespace APIRestPayment.Controllers
             return reverseTransaction;
         }
 
-        public string GenerateUniqueTrackingNumber(string PayeeAccountNumber , string PayerAccountNumber)
+        public string GenerateUniqueTrackingNumber(string PayeeAccountNumber, string PayerAccountNumber)
         {
-            string trackingNumber ="";
+            string trackingNumber = "";
             bool isTrackingNumberUnique = false;
             do
             {

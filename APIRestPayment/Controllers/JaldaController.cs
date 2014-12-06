@@ -151,7 +151,12 @@ namespace APIRestPayment.Controllers
                             {
                                 code = (int)HttpStatusCode.OK,
                             },
-                            data = Newtonsoft.Json.JsonConvert.SerializeObject(new object[] { BodyMessage + "\r\n" + BodyTrailer, this.TheModelFactory.Create(jaldaThick) }),
+                            data = new Models.JaldaThickResponseModel 
+                            {
+                                JaldaThickStatus = BodyMessage,
+                                JaldaThick = this.TheModelFactory.Create(jaldaThick),
+                                Trailer = BodyTrailer,
+                            },
                         });
                     }
                 }
@@ -167,7 +172,11 @@ namespace APIRestPayment.Controllers
                             {
                                 code = (int)HttpStatusCode.OK,
                             },
-                            data = BodyMessage + "\r\n" + BodyTrailer,
+                            data = new Models.JaldaThickResponseModel
+                            {
+                                JaldaThickStatus = BodyMessage,
+                                Trailer = BodyTrailer
+                            }
                         });
                     }
 
@@ -185,7 +194,11 @@ namespace APIRestPayment.Controllers
                             {
                                 code = (int)HttpStatusCode.OK,
                             },
-                            data = BodyMessage + "\r\n" + BodyTrailer,
+                            data = new Models.JaldaThickResponseModel
+                            {
+                                JaldaThickStatus = BodyMessage,
+                                Trailer = BodyTrailer
+                            }
                         });
                     }
                 }
@@ -199,7 +212,11 @@ namespace APIRestPayment.Controllers
                             code = (int)HttpStatusCode.BadRequest,
                             errorMessage = ErrorMessage,
                         },
-                        data = BodyMessage + "\r\n" + BodyTrailer,
+                        data = new Models.JaldaThickResponseModel
+                        {
+                            JaldaThickStatus = BodyMessage,
+                            Trailer = BodyTrailer
+                        }
                     });
                 }
                 //////////////////End Error Sending
@@ -218,7 +235,11 @@ namespace APIRestPayment.Controllers
                         code = (int)HttpStatusCode.BadRequest,
                         errorMessage = ErrorMessage,
                     },
-                    data = BodyMessage + "\r\n" + BodyTrailer,
+                    data = new Models.JaldaThickResponseModel
+                    {
+                        JaldaThickStatus = BodyMessage,
+                        Trailer = BodyTrailer
+                    }
                 });
             }
 
@@ -229,7 +250,11 @@ namespace APIRestPayment.Controllers
                     code = (int)HttpStatusCode.BadRequest,
                     errorMessage = ErrorMessage,
                 },
-                data = "Process Failed due to unknown problems. " + "\r\n" + BodyTrailer,
+                data = new Models.JaldaThickResponseModel
+                {
+                    JaldaThickStatus = "Process Failed due to unknown problems.",
+                    Trailer = BodyTrailer
+                }
             });
 
         }
@@ -239,7 +264,7 @@ namespace APIRestPayment.Controllers
         #region Jalda Thick Operations (Start - Payment - Terminate)
         private bool PerformTerminateThick(Models.POSTModels.JaldaThickPOSTModel jaldaThickPOSTModel, CASPaymentDTO.Domain.JaldaContract jaldaContract, out string BodyMessage, out string ErrorMessage)
         {
-            //1) set initial Serial Number and isStarted
+            //1) set  isterminated
             jaldaContract.Isterminated = true;
 
             //2) subtract deposit from Account. Deposit amount = maxAmount in contract. Before performing deposit we must ensure payer has enough credit in his/her account.
@@ -301,7 +326,7 @@ namespace APIRestPayment.Controllers
 
                     tx.Commit();
 
-                    //2) set responce to STARTED
+                    //2) set responce to PAID
                     BodyMessage = "PAID";
 
                     return false;

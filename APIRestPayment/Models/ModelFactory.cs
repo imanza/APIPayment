@@ -33,7 +33,7 @@ namespace APIRestPayment.Models
             if (transaction == null) throw new NullReferenceException("transaction");
 
             AccountModel source = null;
-            if ((bool)transaction.Showsender) source = this.CreateWithoutCircularReference(transaction.SourceAccountItem);
+            if (transaction.Showsender!=null && (bool)transaction.Showsender) source = this.CreateWithoutCircularReference(transaction.SourceAccountItem);
 
             return new PaymentModel()
             {
@@ -54,9 +54,9 @@ namespace APIRestPayment.Models
             if (account == null) throw new NullReferenceException();
             AccountModel result = new AccountModel();
             result.Url = _UrlHelper.Link("Accounts", new { id = account.Id });
-            result.Accountnumber = account.Accountnumber;
-            result.UserItem = CreateWithoutCircularReference(account.UsersItem);
+            result.Accountnumber = account.Accountnumber;          
             if(level_of_detail != DataAccessTypes.Anonymous){    
+                result.UserItem = CreateWithoutCircularReference(account.UsersItem);
                 result.Dateofopening = DateFuncs.ToShamsiCal(account.Dateofopening);
                 result.Paymentcode = account.Paymentcode;
                 result.IsActive = account.IsActive;
@@ -64,19 +64,18 @@ namespace APIRestPayment.Models
                 result.AccountType = account.AccountTypeItem.Name;
                 result.Currency = account.CurrencyTypeItem.Name;
                 result.Id = account.Id;
-            }
-            
+            }            
             return result;
         }
 
         public UserModel Create(CASPaymentDTO.Domain.Users user , DataAccessTypes level_of_detail)
         {
             UserModel result = new UserModel();
-            result.UserType = user.UserType;
-            if (user.UserType == "LP") result.CompanyDetails = this.Create(user.LegalPersonItem);
-            else result.PersonDetails = this.Create(user.RealPersonItem , level_of_detail);
+            result.UserType = user.UserType;            
             result.Url = _UrlHelper.Link("Users", new { id = user.Id });
             if(level_of_detail != DataAccessTypes.Anonymous){
+                if (user.UserType == "LP") result.CompanyDetails = this.Create(user.LegalPersonItem);
+                else result.PersonDetails = this.Create(user.RealPersonItem , level_of_detail);
                 result.CorrespondingNationalNumber = user.Nationalnumber;
                 result.MobileNumber = user.Mobilenumber;
                 result.TelephoneNumber = user.Mobilenumber;
@@ -173,23 +172,22 @@ namespace APIRestPayment.Models
 
         private AccountModel CreateWithoutCircularReference(CASPaymentDTO.Domain.Account account)
         {
-            if (account == null) throw new NullReferenceException();
+            if (account == null) throw new NullReferenceException("account");
             AccountModel result = new AccountModel();
             result.Url = _UrlHelper.Link("Accounts", new { id = account.Id });
             result.Accountnumber = account.Accountnumber;
-            result.UserItem = CreateWithoutCircularReference(account.UsersItem);
             return result;
         }
 
         private UserModel CreateWithoutCircularReference(CASPaymentDTO.Domain.Users user)
         {
-            if (user == null) throw new NullReferenceException();
+            if (user == null) throw new NullReferenceException("user");
             UserModel result = new UserModel();
             result.UserType = user.UserType;
-            if (user.UserType == "LP") result.CompanyDetails = this.Create(user.LegalPersonItem);
-            else result.PersonDetails = this.Create(user.RealPersonItem, DataAccessTypes.Anonymous);
+            //if (user.UserType == "LP") result.CompanyDetails = this.Create(user.LegalPersonItem);
+            //else result.PersonDetails = this.Create(user.RealPersonItem, DataAccessTypes.Anonymous);
+            //
             result.Url = _UrlHelper.Link("Users", new { id = user.Id });
-
             return result;
         }
         #endregion
@@ -207,10 +205,12 @@ namespace APIRestPayment.Models
             CASPaymentDTO.Domain.Account account = new CASPaymentDTO.Domain.Account();
             try
             {
-                CASPaymentDTO.Domain.CurrencyType ct = currencyHandler.Search(new CASPaymentDTO.Domain.CurrencyType() { Name = accountPOSTModel.Currency }).Cast<CASPaymentDTO.Domain.CurrencyType>().First();
-                CASPaymentDTO.Domain.AccountType at = accountTypeHandler.Search(new CASPaymentDTO.Domain.AccountType() { Name = accountPOSTModel.AccountType }).Cast<CASPaymentDTO.Domain.AccountType>().First();
+                CASPaymentDTO.Domain.AccountType query = new CASPaymentDTO.Domain.AccountType() { NameEn = accountPOSTModel.AccountType };
+                CASPaymentDTO.Domain.CurrencyType ct = currencyHandler.Search(new CASPaymentDTO.Domain.CurrencyType() { Charcode = accountPOSTModel.Currency }).Cast<CASPaymentDTO.Domain.CurrencyType>().First();
+                CASPaymentDTO.Domain.AccountType at = accountTypeHandler.Search(query).Cast<CASPaymentDTO.Domain.AccountType>().FirstOrDefault();
+                //CASPaymentDTO.Domain.AccountType at = accountTypeHandler.Search(new CASPaymentDTO.Domain.AccountType() { Name = accountPOSTModel.AccountType,  }).Cast<CASPaymentDTO.Domain.AccountType>().First();
                 account.CurrencyTypeItem = ct;
-                account.AccountTypeItem = at;
+                if(!object.Equals(at , default(CASPaymentDTO.Domain.AccountType)))account.AccountTypeItem = at;
                 account.UsersItem = userHandler.GetEntity(accountPOSTModel.UserId);
                 account.IsPublic = (accountPOSTModel.IsPublic != null) ? accountPOSTModel.IsPublic : true;
                 ErrorMessage="";

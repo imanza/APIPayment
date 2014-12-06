@@ -29,8 +29,17 @@ namespace APIRestPayment.Controllers
             UserManager = userManager;
         }
 
+        public MemberController(HttpContext httpcontext)
+            : this(new UserManager<CustomUserModel>(new UserStoreModel()))
+        {
+            this.httpContext = httpcontext;
+            isOnThreadPool = true;
+        }
+
         public UserManager<CustomUserModel> UserManager { get; private set; }
 
+        private HttpContext httpContext {get; set;}
+        private bool isOnThreadPool = false;
         //
         // GET: /Account/Login
         [AllowAnonymous]
@@ -355,15 +364,16 @@ namespace APIRestPayment.Controllers
         {
             get
             {
-                return HttpContext.GetOwinContext().Authentication;
+                if (isOnThreadPool)return this.httpContext.GetOwinContext().Authentication;
+                else return HttpContext.GetOwinContext().Authentication;
             }
         }
 
         private async Task SignInAsync(CustomUserModel user, bool isPersistent)
         {
-            AuthenticationManager.SignOut(DefaultAuthenticationTypes.ExternalCookie);
+            AuthenticationManager.SignOut(DefaultAuthenticationTypes.ExternalCookie); 
             //var identity = await UserManager.CreateIdentityAsync(user, DefaultAuthenticationTypes.ApplicationCookie);
-            var identity = await UserManager.CreateIdentityAsync(user , "Application");
+            var identity = await UserManager.CreateIdentityAsync(user , "Application").ConfigureAwait(false);
             //UserManager.
             identity.AddClaim(new Claim(ClaimsIdentity.DefaultNameClaimType, user.Email));
             identity.AddClaim(new Claim(ClaimsIdentity.DefaultRoleClaimType, user.UsersRolesS[0].RolesItem.RoleName));
@@ -398,7 +408,7 @@ namespace APIRestPayment.Controllers
         {
             return await Task.Run(async () => { 
             PasswordVerificationResult result = PasswordVerificationResult.Success;
-            CustomUserModel user = await UserManager.FindByNameAsync(userEmail);
+            CustomUserModel user = await UserManager.FindByNameAsync(userEmail).ConfigureAwait(false);
             if (user == null)
             {
                 return false;
@@ -419,7 +429,7 @@ namespace APIRestPayment.Controllers
                     return true;
                 }
             }
-            });
+            }).ConfigureAwait(false);
         }
 
         public enum ManageMessageId

@@ -7,6 +7,8 @@ using System.Web.Http;
 using System.Web.Http.Routing;
 using APIRestPayment.Constants;
 using System.Threading;
+using System.Security.Claims;
+using System.Web;
 
 namespace APIRestPayment.Controllers
 {
@@ -24,13 +26,19 @@ namespace APIRestPayment.Controllers
                 if( base.CurrentUserAccessType == DataAccessTypes.Administrator) return DataAccessTypes.Administrator;
                 else
                 {
-                    // TODO My Own Logic To check the owner
-                    //////////////////////////////
                     var routeData = Request.GetRouteData();
                     var resourceID = routeData.Values["id"] as string;
-                    if (Thread.CurrentPrincipal.Identity.Name == resourceID)
+                    //
+                    var authentication = System.Web.HttpContextExtensions.GetOwinContext(HttpContext.Current).Authentication;
+                    var ticket = authentication.AuthenticateAsync("Application").Result;
+                    var identity = ticket != null ? ticket.Identity : null;
+                    if (identity != null)
                     {
-                        return DataAccessTypes.Owner;
+                        var currentuserId = identity.Claims.Where(c => c.Type == ClaimTypes.NameIdentifier).Select(c => c.Value).FirstOrDefault();
+                        if (currentuserId == resourceID)
+                        {
+                            return DataAccessTypes.Owner;
+                        }
                     }
                     /////////////////////////////
                     return DataAccessTypes.Anonymous;
@@ -73,9 +81,10 @@ namespace APIRestPayment.Controllers
             IList<CASPaymentDTO.Domain.Users> result =new List<CASPaymentDTO.Domain.Users>();
             if (CurrentUserAccessType != DataAccessTypes.Administrator)
             {
-                long currentUserId;
-                if (Int64.TryParse(Thread.CurrentPrincipal.Identity.Name, out currentUserId)) result.Add(userHandler.GetEntity(currentUserId));
-                else
+                var authentication = System.Web.HttpContextExtensions.GetOwinContext(HttpContext.Current).Authentication;
+                var ticket = authentication.AuthenticateAsync("Application").Result;
+                var identity = ticket != null ? ticket.Identity : null;
+                if (identity == null)
                 {
                     return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
                     {
@@ -85,6 +94,24 @@ namespace APIRestPayment.Controllers
                             errorMessage = "The Identity of the user is not known"
                         }
                     });
+                }
+                //if (Int64.TryParse(Thread.CurrentPrincipal.Identity.Name, out currentUserId)) result = userHandler.GetEntity(currentUserId).AccountS;
+                else
+                {
+                    string currentUserIdstring = identity.Claims.Where(c => c.Type == ClaimTypes.NameIdentifier).Select(c => c.Value).FirstOrDefault();
+                    long currentUserId;
+                    if (long.TryParse(currentUserIdstring, out currentUserId))result.Add(userHandler.GetEntity(currentUserId));
+                    else
+                    {
+                        return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
+                        {
+                            meta = new Models.MetaModel
+                            {
+                                code = (int)HttpStatusCode.BadRequest,
+                                errorMessage = "Bad Identity set for user"
+                            }
+                        });
+                    }
                 }
             }
             else

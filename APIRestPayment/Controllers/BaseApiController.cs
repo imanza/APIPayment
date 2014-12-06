@@ -7,6 +7,7 @@ using APIRestPayment.Models;
 using APIRestPayment.Constants;
 using System.Net.Http;
 using System.Threading;
+using System.Security.Claims;
 
 namespace APIRestPayment.Controllers
 {
@@ -29,9 +30,17 @@ namespace APIRestPayment.Controllers
         {
             get
             {
-                var IsAdministrator = Thread.CurrentPrincipal.IsInRole(RoleTypes.Administrator.ToString());
-                if (IsAdministrator) return RoleTypes.Administrator;
-                else return RoleTypes.OrdinaryUser;
+                var authentication = System.Web.HttpContextExtensions.GetOwinContext(HttpContext.Current).Authentication;
+                var ticket = authentication.AuthenticateAsync("Application").Result;
+                var identity = ticket != null ? ticket.Identity : null;
+                if (identity != null)
+                {
+                    string identityRole = identity.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value).FirstOrDefault();
+                    string gg = identity.RoleClaimType;
+                    var IsAdministrator = (identityRole == RoleTypes.Administrator.ToString());
+                    if (IsAdministrator) return RoleTypes.Administrator;
+                }
+                return RoleTypes.OrdinaryUser;
             }
         }
 

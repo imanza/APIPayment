@@ -4,8 +4,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Security.Claims;
 using System.Threading;
 using System.Transactions;
+using System.Web;
 using System.Web.Http;
 using System.Web.Http.Routing;
 
@@ -26,14 +28,17 @@ namespace APIRestPayment.Controllers
                 if (base.CurrentUserAccessType == DataAccessTypes.Administrator) return DataAccessTypes.Administrator;
                 else
                 {
-                    // My Own Logic To check the owner of the account
-                    //////////////////////////////
                     var routeData = Request.GetRouteData();
                     var resourceID = routeData.Values["id"] as string;
-                    if (resourceID != null)
+                    //
+                    var authentication = System.Web.HttpContextExtensions.GetOwinContext(HttpContext.Current).Authentication;
+                    var ticket = authentication.AuthenticateAsync("Application").Result;
+                    var identity = ticket != null ? ticket.Identity : null;
+                    if (identity != null)
                     {
+                        var currentuserIdstring = identity.Claims.Where(c => c.Type == ClaimTypes.NameIdentifier).Select(c => c.Value).FirstOrDefault();
                         long currentUserId;
-                        if (Int64.TryParse(Thread.CurrentPrincipal.Identity.Name, out currentUserId))
+                        if (Int64.TryParse(currentuserIdstring, out currentUserId))
                         {
                             CASPaymentDTO.Domain.Users currentUser = userHandler.GetEntity(currentUserId);
                             foreach (CASPaymentDTO.Domain.Account ac in currentUser.AccountS)
@@ -52,7 +57,6 @@ namespace APIRestPayment.Controllers
         }
 
         #endregion
-
 
         #region Get
 
@@ -88,9 +92,10 @@ namespace APIRestPayment.Controllers
             IList<CASPaymentDTO.Domain.Account> result;
             if (CurrentUserAccessType != DataAccessTypes.Administrator)
             {
-                long currentUserId;
-                if (Int64.TryParse(Thread.CurrentPrincipal.Identity.Name, out currentUserId)) result = userHandler.GetEntity(currentUserId).AccountS;
-                else
+                var authentication = System.Web.HttpContextExtensions.GetOwinContext(HttpContext.Current).Authentication;
+                var ticket = authentication.AuthenticateAsync("Application").Result;
+                var identity = ticket != null ? ticket.Identity : null;
+                if (identity == null)
                 {
                     return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
                     {
@@ -100,6 +105,24 @@ namespace APIRestPayment.Controllers
                             errorMessage = "The Identity of the user is not known"
                         }
                     });
+                }
+                //if (Int64.TryParse(Thread.CurrentPrincipal.Identity.Name, out currentUserId)) result = userHandler.GetEntity(currentUserId).AccountS;
+                else
+                {
+                    string currentUserId = identity.Claims.Where(c => c.Type == ClaimTypes.NameIdentifier).Select(c => c.Value).FirstOrDefault();
+                    long currentuserIdLong;
+                    if(long.TryParse(currentUserId , out currentuserIdLong))result = userHandler.GetEntity(currentuserIdLong).AccountS;
+                    else
+                    {
+                        return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
+                        {
+                            meta = new Models.MetaModel
+                            {
+                                code = (int)HttpStatusCode.BadRequest,
+                                errorMessage = "Bad Identity set for user"
+                            }
+                        });
+                    }
                 }
             }
             else
@@ -133,7 +156,6 @@ namespace APIRestPayment.Controllers
                     PrevPageLink = prevLink,
                     NextPageLink = nextLink,
                 }
-
             });
         }
 
@@ -175,8 +197,8 @@ namespace APIRestPayment.Controllers
                     //Complete unassigned data in account
 
                     account.IsActive = true;
-                    account.Paymentcode = this.GeneratePaymentCode();
                     account.Accountnumber = this.GenerateAccountNumber(account);
+                    account.Paymentcode = this.GeneratePaymentCode(account.Accountnumber);                    
                     account.Balance = 0;
                     account.Dateofopening = DateTime.Now;
 
@@ -260,18 +282,32 @@ namespace APIRestPayment.Controllers
 
         private bool CheckValidityofPost(CASPaymentDTO.Domain.Account account)
         {
-            long currentUserId;
-            if (Int64.TryParse(Thread.CurrentPrincipal.Identity.Name, out currentUserId))
+            
+            var authentication = System.Web.HttpContextExtensions.GetOwinContext(HttpContext.Current).Authentication;
+            var ticket = authentication.AuthenticateAsync("Application").Result;
+            var identity = ticket != null ? ticket.Identity : null;
+            if (identity != null)
             {
-                if (currentUserId != account.UsersItem.Id) return false;
-                //TODO set the upper limit for number of accounts. Now this amount is 5
-                else if (account.UsersItem.AccountS.Count >= 5) return false;
-                else return true;
+                var currentuserIdstring = identity.Claims.Where(c => c.Type == ClaimTypes.NameIdentifier).Select(c => c.Value).FirstOrDefault();
+                long currentUserId;
+                if (Int64.TryParse(currentuserIdstring, out currentUserId))
+                {
+                    CASPaymentDTO.Domain.Users currentUser = userHandler.GetEntity(currentUserId);
+                    if (currentUserId != account.UsersItem.Id) return false;
+                    //TODO set the upper limit for number of accounts. Now this amount is 5
+                    else if (account.UsersItem.AccountS.Count >= 5) return false;
+                    else return true;
+                }
+                else
+                {
+                    return false;
+                }
             }
             else
             {
                 return false;
             }
+
         }
         /// <summary>
         /// Generates a unique Account Number regarding the type of account - user Id - the index of previous accounts
@@ -291,10 +327,10 @@ namespace APIRestPayment.Controllers
             return accountTypeCode + userCode + previousAccountCount;
         }
 
-        private string GeneratePaymentCode()
+        private string GeneratePaymentCode(string AccountNumber)
         {
             // TODO generate a payment code for the account
-            return "PC" + (new Random(int.MaxValue)).Next();
+            return "PC" + Guid.NewGuid().ToString("n") + AccountNumber.GetHashCode();
         }
 
         #endregion
