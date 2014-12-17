@@ -26,33 +26,39 @@ namespace APIRestPayment
             private set;
         } 
 
-        protected void Application_Start(object sender, EventArgs e)
+        protected void Application_Start()
         {               
-            //force Https
-            //FilterConfig.RegisterHttpFilters(GlobalConfiguration.Configuration.Filters);
             
-            //////// to generate json response
-            GlobalConfiguration.Configuration.Formatters.Clear();
-            GlobalConfiguration.Configuration.Formatters.Add(new System.Net.Http.Formatting.JsonMediaTypeFormatter());
 
-            ////solve self referencing problem
-            GlobalConfiguration.Configuration.Formatters.JsonFormatter.SerializerSettings.Re‌ferenceLoopHandling = ReferenceLoopHandling.Ignore;
-
-            //omit null values globally in response
-            GlobalConfiguration.Configuration.Formatters.JsonFormatter.SerializerSettings.NullValueHandling = NullValueHandling.Ignore;
-            
-            ///default settings
-            AreaRegistration.RegisterAllAreas();
-                        
-            //WebApiConfig.Register(GlobalConfiguration.Configuration); 
-            GlobalConfiguration.Configure(WebApiConfig.Register);
-            FilterConfig.RegisterGlobalFilters(GlobalFilters.Filters);
-            RouteConfig.RegisterRoutes(RouteTable.Routes);
-            BundleConfig.RegisterBundles(BundleTable.Bundles);
-                         
             /// congigure NHibernate
             var nhConfig = new NHibernate.Cfg.Configuration().Configure();
-            SessionFactory = nhConfig.BuildSessionFactory();  
+            SessionFactory = nhConfig.BuildSessionFactory(); 
+            
+            
+            ////force Https
+            ////FilterConfig.RegisterHttpFilters(GlobalConfiguration.Configuration.Filters);
+            
+            ////////// to generate json response
+             
+            //GlobalConfiguration.Configuration.Formatters.Clear();
+            //GlobalConfiguration.Configuration.Formatters.Add(new System.Net.Http.Formatting.JsonMediaTypeFormatter());
+
+            //////solve self referencing problem
+            //GlobalConfiguration.Configuration.Formatters.JsonFormatter.SerializerSettings.Re‌ferenceLoopHandling = ReferenceLoopHandling.Ignore;
+
+            ////omit null values globally in response
+            //GlobalConfiguration.Configuration.Formatters.JsonFormatter.SerializerSettings.NullValueHandling = NullValueHandling.Ignore;
+            
+            /////default settings
+            //AreaRegistration.RegisterAllAreas();
+                        
+            ////WebApiConfig.Register(GlobalConfiguration.Configuration); 
+            //GlobalConfiguration.Configure(WebApiConfig.Register);
+            //FilterConfig.RegisterGlobalFilters(GlobalFilters.Filters);
+            //RouteConfig.RegisterRoutes(RouteTable.Routes);
+            //BundleConfig.RegisterBundles(BundleTable.Bundles);
+                         
+ 
         }
 
         //protected void Session_Start(object sender, EventArgs e)
@@ -66,7 +72,7 @@ namespace APIRestPayment
                 //    HttpContext.Current.Response.Redirect(HttpContext.Current.Request.Url.AbsoluteUri.Replace("http://", "https://"));
                 //    return;
                 //}
-
+            int pe = Startup.yyy;
             lock (syncRoot)
             {
                 var session = SessionFactory.OpenSession();

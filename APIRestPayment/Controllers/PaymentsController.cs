@@ -43,9 +43,8 @@ namespace APIRestPayment.Controllers
                     var routeData = Request.GetRouteData();
                     var resourceID = routeData.Values["id"] as string;
                     //
-                    var authentication = System.Web.HttpContextExtensions.GetOwinContext(HttpContext.Current).Authentication;
-                    var ticket = authentication.AuthenticateAsync("Application").Result;
-                    var identity = ticket != null ? ticket.Identity : null;
+                    
+                    var identity = User.Identity as ClaimsIdentity;
                     if (identity != null)
                     {
                         var ss = identity.Claims.Where(x => x.Type == ClaimTypes.NameIdentifier).FirstOrDefault().Value;
@@ -73,12 +72,12 @@ namespace APIRestPayment.Controllers
         #region GET
 
         
-    [Filters.GeneralAuthorization]
+   // [Filters.GeneralAuthorization]
     public HttpResponseMessage GetPayment(long id)
         {
             try
             {
-                CASPaymentDTO.Domain.Transactions searchedTransaction= searchedTransaction = this.transactionHandler.GetEntity(id);
+                CASPaymentDTO.Domain.Transactions searchedTransaction= this.transactionHandler.GetEntity(id);
                 //if (id != null)
                 //{
                    
@@ -130,7 +129,7 @@ namespace APIRestPayment.Controllers
 
         private long GetIdofCurrentUser()
         {
-            var identity = GetClaimsIdentityofCurrentUser();
+            var identity = User.Identity as ClaimsIdentity;
             if (identity != null)
             {
                 var currentuserIdstring = identity.Claims.Where(c => c.Type == ClaimTypes.NameIdentifier).Select(c => c.Value).FirstOrDefault();
@@ -156,25 +155,15 @@ namespace APIRestPayment.Controllers
             return -1;
         }
 
-        private System.Security.Claims.ClaimsIdentity GetClaimsIdentityofCurrentUser()
-        {
-            var authentication = System.Web.HttpContextExtensions.GetOwinContext(HttpContext.Current).Authentication;
-            var ticket = authentication.AuthenticateAsync("Application").Result;
-            var identity = ticket != null ? ticket.Identity : null;
-            if (identity != null)
-            {
-                return identity;
-            }
-            return null;
-        }
+        
 
-        [Filters.GeneralAuthorization]
+      //  [Filters.GeneralAuthorization]
         public HttpResponseMessage Get(int page = 0, int pageSize = 10 ,string trackingNumber="", string startDate="", string endDate="")
         {
             IList<CASPaymentDTO.Domain.Transactions> result = new List<CASPaymentDTO.Domain.Transactions>();
-            if (CurrentUserAccessType != DataAccessTypes.Administrator)
+            if (base.CurrentUserAccessType != DataAccessTypes.Administrator)
             {
-                var identity = this.GetClaimsIdentityofCurrentUser();
+                var identity = User.Identity as ClaimsIdentity;
                 if (identity == null)
                 {
                     return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel

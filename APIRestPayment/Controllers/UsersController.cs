@@ -12,7 +12,8 @@ using System.Web;
 
 namespace APIRestPayment.Controllers
 {
-    [Filters.GeneralAuthorization]
+   // [Filters.GeneralAuthorization]
+    [Authorize]
     public class UsersController : BaseApiController
     {
         CASPaymentDAO.DataHandler.UsersDataHandler userHandler = new CASPaymentDAO.DataHandler.UsersDataHandler(WebApiApplication.SessionFactory);
@@ -29,9 +30,10 @@ namespace APIRestPayment.Controllers
                     var routeData = Request.GetRouteData();
                     var resourceID = routeData.Values["id"] as string;
                     //
-                    var authentication = System.Web.HttpContextExtensions.GetOwinContext(HttpContext.Current).Authentication;
-                    var ticket = authentication.AuthenticateAsync("Application").Result;
-                    var identity = ticket != null ? ticket.Identity : null;
+                    //var authentication = System.Web.HttpContextExtensions.GetOwinContext(HttpContext.Current).Authentication;
+                    //var ticket = authentication.AuthenticateAsync("Application").Result;
+                    //var identity = User.Identity as ClaimsIdentity;
+                    var identity = User.Identity as ClaimsIdentity;
                     if (identity != null)
                     {
                         var currentuserId = identity.Claims.Where(c => c.Type == ClaimTypes.NameIdentifier).Select(c => c.Value).FirstOrDefault();
@@ -52,6 +54,7 @@ namespace APIRestPayment.Controllers
 
         public HttpResponseMessage GetUser(long id)
         {
+            
             try
             {
                 CASPaymentDTO.Domain.Users searchedUser = this.userHandler.GetEntity(id);
@@ -79,11 +82,11 @@ namespace APIRestPayment.Controllers
         public HttpResponseMessage Get(int page = 0, int pageSize = 2)
         {
             IList<CASPaymentDTO.Domain.Users> result =new List<CASPaymentDTO.Domain.Users>();
-            if (CurrentUserAccessType != DataAccessTypes.Administrator)
+            if (base.CurrentUserAccessType != DataAccessTypes.Administrator)
             {
                 var authentication = System.Web.HttpContextExtensions.GetOwinContext(HttpContext.Current).Authentication;
                 var ticket = authentication.AuthenticateAsync("Application").Result;
-                var identity = ticket != null ? ticket.Identity : null;
+                var identity = User.Identity as ClaimsIdentity;
                 if (identity == null)
                 {
                     return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
@@ -129,7 +132,7 @@ namespace APIRestPayment.Controllers
             .Skip(pageSize * page)
             .Take(pageSize)
             .ToList()
-            .Select(s => TheModelFactory.Create(s , (CurrentUserAccessType==DataAccessTypes.Administrator) ? DataAccessTypes.Administrator : DataAccessTypes.Owner));
+            .Select(s => TheModelFactory.Create(s , (base.CurrentUserAccessType==DataAccessTypes.Administrator) ? DataAccessTypes.Administrator : DataAccessTypes.Owner));
             ////////////////////////////////////////////////////
             return Request.CreateResponse(HttpStatusCode.OK, new Models.QueryResponseModel
             {

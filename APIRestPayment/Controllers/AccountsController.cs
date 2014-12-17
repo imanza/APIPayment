@@ -13,11 +13,18 @@ using System.Web.Http.Routing;
 
 namespace APIRestPayment.Controllers
 {
-    [Filters.GeneralAuthorization]
+    //[Filters.GeneralAuthorization]
+    [Authorize]
     public class AccountsController : BaseApiController
     {
+        #region Handlers
+        
         CASPaymentDAO.DataHandler.AccountDataHandler accountHandler = new CASPaymentDAO.DataHandler.AccountDataHandler(WebApiApplication.SessionFactory);
         CASPaymentDAO.DataHandler.UsersDataHandler userHandler = new CASPaymentDAO.DataHandler.UsersDataHandler(WebApiApplication.SessionFactory);
+        CASPaymentDAO.DataHandler.SettingDataDataHandler settingDataHandler = new CASPaymentDAO.DataHandler.SettingDataDataHandler(WebApiApplication.SessionFactory);
+        
+        #endregion
+
 
         #region Access
 
@@ -30,13 +37,11 @@ namespace APIRestPayment.Controllers
                 {
                     var routeData = Request.GetRouteData();
                     var resourceID = routeData.Values["id"] as string;
-                    //
-                    var authentication = System.Web.HttpContextExtensions.GetOwinContext(HttpContext.Current).Authentication;
-                    var ticket = authentication.AuthenticateAsync("Application").Result;
-                    var identity = ticket != null ? ticket.Identity : null;
+                    
+                    var identity = User.Identity as ClaimsIdentity;
                     if (identity != null)
                     {
-                        var currentuserIdstring = identity.Claims.Where(c => c.Type == ClaimTypes.NameIdentifier).Select(c => c.Value).FirstOrDefault();
+                        var currentuserIdstring = identity.Claims.Where(c => c.Type == ClaimNames.NameID).Select(c => c.Value).FirstOrDefault();
                         long currentUserId;
                         if (Int64.TryParse(currentuserIdstring, out currentUserId))
                         {
@@ -90,11 +95,9 @@ namespace APIRestPayment.Controllers
         {
 
             IList<CASPaymentDTO.Domain.Account> result;
-            if (CurrentUserAccessType != DataAccessTypes.Administrator)
+            if (base.CurrentUserAccessType != DataAccessTypes.Administrator)
             {
-                var authentication = System.Web.HttpContextExtensions.GetOwinContext(HttpContext.Current).Authentication;
-                var ticket = authentication.AuthenticateAsync("Application").Result;
-                var identity = ticket != null ? ticket.Identity : null;
+                var identity = User.Identity as ClaimsIdentity;
                 if (identity == null)
                 {
                     return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
@@ -109,18 +112,34 @@ namespace APIRestPayment.Controllers
                 //if (Int64.TryParse(Thread.CurrentPrincipal.Identity.Name, out currentUserId)) result = userHandler.GetEntity(currentUserId).AccountS;
                 else
                 {
-                    string currentUserId = identity.Claims.Where(c => c.Type == ClaimTypes.NameIdentifier).Select(c => c.Value).FirstOrDefault();
-                    long currentuserIdLong;
-                    if(long.TryParse(currentUserId , out currentuserIdLong))result = userHandler.GetEntity(currentuserIdLong).AccountS;
+                    var scopesGranted = identity.Claims.Where(c => c.Type == ClaimNames.OAuthScope).Select(c => c.Value);
+                    if (scopesGranted.Contains(ScopeTypes.ManageAccounts) || scopesGranted.Contains(ScopeTypes.AllAccess))
+                    {
+                        string currentUserId = identity.Claims.Where(c => c.Type == ClaimNames.NameID).Select(c => c.Value).FirstOrDefault();
+                        long currentuserIdLong;
+                        if (long.TryParse(currentUserId, out currentuserIdLong)) result = userHandler.GetEntity(currentuserIdLong).AccountS;
+                        else
+                        {
+                            return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
+                            {
+                                meta = new Models.MetaModel
+                                {
+                                    code = (int)HttpStatusCode.BadRequest,
+                                    errorMessage = "Bad Identity set for user"
+                                }
+                            });
+                        }
+                    }
                     else
                     {
-                        return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
+                        //User does not have permission to view accounts
+                        return Request.CreateResponse(HttpStatusCode.Unauthorized, new Models.QueryResponseModel
                         {
                             meta = new Models.MetaModel
                             {
-                                code = (int)HttpStatusCode.BadRequest,
-                                errorMessage = "Bad Identity set for user"
-                            }
+                                code = (int)HttpStatusCode.Unauthorized,
+                                errorMessage = "Not enough permisions granted to view accounts!"
+                            },
                         });
                     }
                 }
@@ -140,7 +159,7 @@ namespace APIRestPayment.Controllers
             .Skip(pageSize * page)
             .Take(pageSize)
             .ToList()
-            .Select(s => TheModelFactory.Create(s, (CurrentUserAccessType == DataAccessTypes.Administrator) ? DataAccessTypes.Administrator : DataAccessTypes.Owner));
+            .Select(s => TheModelFactory.Create(s, (base.CurrentUserAccessType == DataAccessTypes.Administrator) ? DataAccessTypes.Administrator : DataAccessTypes.Owner));
             ////////////////////////////////////////////////////
             return Request.CreateResponse(HttpStatusCode.OK, new Models.QueryResponseModel
             {
@@ -174,101 +193,124 @@ namespace APIRestPayment.Controllers
         /// <returns>Response contains the account properties including the Id related to this account.</returns>
         public HttpResponseMessage Post([FromBody] APIRestPayment.Models.POSTModels.AccountPOSTModel accountPOSTModel)
         {
-            try
+            var identity = User.Identity as ClaimsIdentity;
+            if (identity != null)
             {
-                string ParseErrorMessage;
-                CASPaymentDTO.Domain.Account account = TheModelFactory.Parse(accountPOSTModel , out ParseErrorMessage);
-
-                if (account == null)
+                var scopesGranted = identity.Claims.Where(c => c.Type == ClaimNames.OAuthScope).Select(c => c.Value);
+                if (scopesGranted.Contains(ScopeTypes.ManageAccounts) || scopesGranted.Contains(ScopeTypes.AllAccess))
                 {
-                    return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
-                    {
-                        meta = new Models.MetaModel
-                        {
-                            code = (int)HttpStatusCode.BadRequest,
-                            errorMessage = ParseErrorMessage,
-                        }
-                    });
-                }
-                //////////////////
-                //check the validity of this post. Prevent other user from creating accounts for others.                
-                if (CheckValidityofPost(account))
-                {
-                    //Complete unassigned data in account
-
-                    account.IsActive = true;
-                    account.Accountnumber = this.GenerateAccountNumber(account);
-                    account.Paymentcode = this.GeneratePaymentCode(account.Accountnumber);                    
-                    account.Balance = 0;
-                    account.Dateofopening = DateTime.Now;
-
-                    /////////////////
-                    ///Here we start a transaction to save the account
                     try
                     {
-                            accountHandler.Save(account);
-                            //Return account with details including its Id
-                            account = accountHandler.Search(account).Cast<CASPaymentDTO.Domain.Account>().First();
-                            if (account != null)
-                            {
-                                var result = Request.CreateResponse(HttpStatusCode.Created, new Models.QueryResponseModel
-                                {
-                                    meta = new Models.MetaModel
-                                    {
-                                        code = (int)HttpStatusCode.Created,
-                                    },
-                                    data = this.TheModelFactory.Create(account, DataAccessTypes.Owner),
-                                });
-                                return result;
-                            }
+                        string ParseErrorMessage;
+                        CASPaymentDTO.Domain.Account account = TheModelFactory.Parse(accountPOSTModel, out ParseErrorMessage);
 
-                        
-                    }
-                    catch (TransactionAbortedException ex)
-                    {
-                        return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
+                        if (account == null)
+                        {
+                            //Account POST model could not be parsed or contains invalid data
+                            return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
+                            {
+                                meta = new Models.MetaModel
+                                {
+                                    code = (int)HttpStatusCode.BadRequest,
+                                    errorMessage = ParseErrorMessage,
+                                }
+                            });
+                        }
+                        //////////////////
+                        //check the validity of this post. Prevent other user from creating accounts for others.                
+                        if (CheckValidityofPost(account))
+                        {
+                            //Complete unassigned data in account
+
+                            account.IsActive = true;
+                            account.Accountnumber = this.GenerateAccountNumber(account);
+                            account.Paymentcode = this.GeneratePaymentCode(account.Accountnumber);
+                            account.Balance = 0;
+                            account.Dateofopening = DateTime.Now;
+
+                            /////////////////
+                            ///Here we start a transaction to save the account
+                            try
+                            {
+                                accountHandler.Save(account);
+                                //Return account with details including its Id
+                                account = accountHandler.Search(account).Cast<CASPaymentDTO.Domain.Account>().First();
+                                if (account != null)
+                                {
+                                    var result = Request.CreateResponse(HttpStatusCode.Created, new Models.QueryResponseModel
+                                    {
+                                        meta = new Models.MetaModel
+                                        {
+                                            code = (int)HttpStatusCode.Created,
+                                        },
+                                        data = this.TheModelFactory.Create(account, DataAccessTypes.Owner),
+                                    });
+                                    return result;
+                                }
+
+
+                            }
+                            catch (TransactionAbortedException ex)
+                            {
+                                return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
+                                        {
+                                            meta = new Models.MetaModel
+                                            {
+                                                code = (int)HttpStatusCode.BadRequest,
+                                                errorMessage = "Could not save the account.\n" + ex
+                                            },
+                                        });
+                            }
+                            catch (ApplicationException ex)
+                            {
+                                return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
                                 {
                                     meta = new Models.MetaModel
                                     {
                                         code = (int)HttpStatusCode.BadRequest,
-                                        errorMessage = "Could not save the account.\n" + ex
+                                        errorMessage = "Some problems happend while saving the account. Account not saved!\n" + ex
                                     },
                                 });
+                            }
+                        }
+                        else
+                        {
+                            //Attempted to Create an account for other users
+                            return Request.CreateResponse(HttpStatusCode.Unauthorized, new Models.QueryResponseModel
+                            {
+                                meta = new Models.MetaModel
+                                {
+                                    code = (int)HttpStatusCode.Unauthorized,
+                                    errorMessage = "You are not allowed to create accounts for other users!"
+                                },
+                            });
+                        }
                     }
-                    catch (ApplicationException ex)
+                    catch (Exception ex)
                     {
+                        //Error while saving account or any other unpredicted error happend
                         return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
                         {
                             meta = new Models.MetaModel
                             {
                                 code = (int)HttpStatusCode.BadRequest,
-                                errorMessage = "Some problems happend while saving the account. Account not saved!\n" + ex
+                                errorMessage = "The account cannot be saved:\n" + ex
                             },
                         });
                     }
                 }
                 else
                 {
+                    //User does not have permission to create account
                     return Request.CreateResponse(HttpStatusCode.Unauthorized, new Models.QueryResponseModel
                     {
                         meta = new Models.MetaModel
                         {
                             code = (int)HttpStatusCode.Unauthorized,
-                            errorMessage = "You are not allowed to create accounts for other users!"
+                            errorMessage = "Not enough permisions granted to do this action!"
                         },
                     });
                 }
-            }
-            catch (Exception ex)
-            {
-                return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
-                {
-                    meta = new Models.MetaModel
-                    {
-                        code = (int)HttpStatusCode.BadRequest,
-                        errorMessage = "The account cannot be saved:\n" + ex
-                    },
-                });
             }
             return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
             {
@@ -280,22 +322,23 @@ namespace APIRestPayment.Controllers
             });
         }
 
-        private bool CheckValidityofPost(CASPaymentDTO.Domain.Account account)
+        private bool CheckValidityofPost (CASPaymentDTO.Domain.Account account)
         {
             
-            var authentication = System.Web.HttpContextExtensions.GetOwinContext(HttpContext.Current).Authentication;
-            var ticket = authentication.AuthenticateAsync("Application").Result;
-            var identity = ticket != null ? ticket.Identity : null;
+            
+            var identity = User.Identity as ClaimsIdentity;
             if (identity != null)
             {
                 var currentuserIdstring = identity.Claims.Where(c => c.Type == ClaimTypes.NameIdentifier).Select(c => c.Value).FirstOrDefault();
                 long currentUserId;
                 if (Int64.TryParse(currentuserIdstring, out currentUserId))
                 {
+                    string upperLimitAccountSTRING= settingDataHandler.Search(new CASPaymentDTO.Domain.SettingData { Name = "MaxAccountCount" }).Cast<CASPaymentDTO.Domain.SettingData>().FirstOrDefault().Value;
+                    int upperLimitAccountINT;
                     CASPaymentDTO.Domain.Users currentUser = userHandler.GetEntity(currentUserId);
                     if (currentUserId != account.UsersItem.Id) return false;
-                    //TODO set the upper limit for number of accounts. Now this amount is 5
-                    else if (account.UsersItem.AccountS.Count >= 5) return false;
+                    //TODO set the upper limit for number of accounts. Now this amount is 5 
+                    else if ((int.TryParse(upperLimitAccountSTRING ,out upperLimitAccountINT)) && account.UsersItem.AccountS.Count >= upperLimitAccountINT) return false;
                     else return true;
                 }
                 else
@@ -330,7 +373,7 @@ namespace APIRestPayment.Controllers
         private string GeneratePaymentCode(string AccountNumber)
         {
             // TODO generate a payment code for the account
-            return "PC" + Guid.NewGuid().ToString("n") + AccountNumber.GetHashCode();
+            return "PC" + ((Guid.NewGuid().ToString("n") + AccountNumber).GetHashCode().ToString()).Substring(0,8);
         }
 
         #endregion

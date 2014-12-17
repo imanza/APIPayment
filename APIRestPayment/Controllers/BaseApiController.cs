@@ -30,9 +30,8 @@ namespace APIRestPayment.Controllers
         {
             get
             {
-                var authentication = System.Web.HttpContextExtensions.GetOwinContext(HttpContext.Current).Authentication;
-                var ticket = authentication.AuthenticateAsync("Application").Result;
-                var identity = ticket != null ? ticket.Identity : null;
+                
+                var identity = User.Identity as ClaimsIdentity;
                 if (identity != null)
                 {
                     string identityRole = identity.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value).FirstOrDefault();

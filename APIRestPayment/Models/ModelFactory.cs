@@ -197,7 +197,7 @@ namespace APIRestPayment.Models
 
         public CASPaymentDTO.Domain.Account Parse(AccountPOSTModel accountPOSTModel , out string ErrorMessage)
         {
-            if (accountPOSTModel.UserId == null || accountPOSTModel.AccountType == null)
+            if (accountPOSTModel.UserId == null || accountPOSTModel.AccountType == null || accountPOSTModel.Currency == null)
             {
                 ErrorMessage = "Incomplete Account Data.";
                 return null;
@@ -206,10 +206,10 @@ namespace APIRestPayment.Models
             try
             {
                 CASPaymentDTO.Domain.AccountType query = new CASPaymentDTO.Domain.AccountType() { NameEn = accountPOSTModel.AccountType };
-                CASPaymentDTO.Domain.CurrencyType ct = currencyHandler.Search(new CASPaymentDTO.Domain.CurrencyType() { Charcode = accountPOSTModel.Currency }).Cast<CASPaymentDTO.Domain.CurrencyType>().First();
+                CASPaymentDTO.Domain.CurrencyType ct = currencyHandler.Search(new CASPaymentDTO.Domain.CurrencyType() { Charcode = accountPOSTModel.Currency }).Cast<CASPaymentDTO.Domain.CurrencyType>().FirstOrDefault();
                 CASPaymentDTO.Domain.AccountType at = accountTypeHandler.Search(query).Cast<CASPaymentDTO.Domain.AccountType>().FirstOrDefault();
                 //CASPaymentDTO.Domain.AccountType at = accountTypeHandler.Search(new CASPaymentDTO.Domain.AccountType() { Name = accountPOSTModel.AccountType,  }).Cast<CASPaymentDTO.Domain.AccountType>().First();
-                account.CurrencyTypeItem = ct;
+                if (!object.Equals(ct, default(CASPaymentDTO.Domain.CurrencyType))) account.CurrencyTypeItem = ct;
                 if(!object.Equals(at , default(CASPaymentDTO.Domain.AccountType)))account.AccountTypeItem = at;
                 account.UsersItem = userHandler.GetEntity(accountPOSTModel.UserId);
                 account.IsPublic = (accountPOSTModel.IsPublic != null) ? accountPOSTModel.IsPublic : true;
