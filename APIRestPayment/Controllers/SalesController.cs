@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Nito.AsyncEx;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,12 +14,12 @@ namespace APIRestPayment.Controllers
     public class SalesController : Controller
     {
         #region Handlers
-        
+
         CASPaymentDAO.DataHandler.UsersDataHandler userHandler = new CASPaymentDAO.DataHandler.UsersDataHandler(WebApiApplication.SessionFactory);
         CASPaymentDAO.DataHandler.AccountDataHandler accountHandler = new CASPaymentDAO.DataHandler.AccountDataHandler(WebApiApplication.SessionFactory);
         CASPaymentDAO.DataHandler.CurrencyTypeDataHandler currencyHandler = new CASPaymentDAO.DataHandler.CurrencyTypeDataHandler(WebApiApplication.SessionFactory);
-        CASPaymentDAO.DataHandler.TransactionTypeDataHandler transactionTypeHanlder = new CASPaymentDAO.DataHandler.TransactionTypeDataHandler(WebApiApplication.SessionFactory);
-        #endregion 
+        CASPaymentDAO.DataHandler.TransactionTypeDataHandler transactionTypeHandler = new CASPaymentDAO.DataHandler.TransactionTypeDataHandler(WebApiApplication.SessionFactory);
+        #endregion
 
 
         //
@@ -28,7 +29,7 @@ namespace APIRestPayment.Controllers
             return View();
         }
 
-        public ActionResult SalesLaunch(string paymentModelJSON , string returnUrl)
+        public ActionResult SalesLaunch(string paymentModelJSON, string returnUrl)
         {
             ViewBag.ReturnUrl = returnUrl;
             //TODO unify the authentication methods with the other server
@@ -65,55 +66,81 @@ namespace APIRestPayment.Controllers
         }
 
         [HttpPost]
-        public async Task<ActionResult> SalesLaunch(Models.WebPageModels.SalesPageModel model, string returnUrl , string PaymentPOSTModelJSON)
+        [ValidateAntiForgeryToken]
+        public async Task<ActionResult> SalesLaunch(Models.WebPageModels.SalesPageModel model, string returnUrl, string PaymentPOSTModelJSON)
         {
             Models.POSTModels.PaymentPOSTModel PaymentPOSTModel = (Models.POSTModels.PaymentPOSTModel)Newtonsoft.Json.JsonConvert.DeserializeObject(PaymentPOSTModelJSON, typeof(Models.POSTModels.PaymentPOSTModel));
             if (ModelState.IsValid)
             {
                 PaymentsController paymentController = new PaymentsController();
                 CASPaymentDTO.Domain.Account PayerAccount = accountHandler.GetEntity(model.SelectedUserAccountId);
-                string paymentResult = "";
+                Models.PaymentResultModel resultofTransferPayment;
                 if (!await paymentController.CheckAccountAndPINCode(PayerAccount, model.PINCode))
                 {
                     //PIN is incorrect
-                    paymentResult = "Error: Incorrect Pin";
+                    resultofTransferPayment = new Models.PaymentResultModel
+                    {
+                        Error = "Error: Incorrect Pin",
+                        ResultOfPayment = Constants.PaymentStatusTypes.Canceled
+                    };
                 }
                 else if (!await paymentController.CheckBalance(PayerAccount, (Decimal)PaymentPOSTModel.Amount))
                 {
                     //Not Enough Money in Bank Account
-                    paymentResult = "Error: Not Enough Money";
+                    resultofTransferPayment = new Models.PaymentResultModel
+                    {
+                        Error = "Error: Not Enough Money",
+                        ResultOfPayment = Constants.PaymentStatusTypes.Canceled
+                    };
                 }
                 else if (!await paymentController.CheckUpperLimit(PayerAccount, (Decimal)PaymentPOSTModel.Amount, Constants.TransactionTypes.Purchase))
                 {
                     //Limit for purchase today is reached
-                    paymentResult = "Error: Upper Limit";
+                    resultofTransferPayment = new Models.PaymentResultModel
+                    {
+                        Error = "Error: Upper Limit",
+                        ResultOfPayment = Constants.PaymentStatusTypes.Canceled
+                    };
                 }
                 else
                 {
                     //Do payment job
-                    CASPaymentDTO.Domain.Transactions payerTransaction = CreatePayerTransaction(PaymentPOSTModel, PayerAccount);
-                    paymentResult = paymentController.PerformPayment(payerTransaction);
+                    CASPaymentDTO.Domain.Transactions payerTransaction = AsyncContext.Run(() => this.CreatePayerTransaction(PaymentPOSTModel, PayerAccount));
+                    string paymentStatus=null, paymentErrors=null, paymentTrackingNumber=null;
+                    AsyncContext.Run(() => paymentController.PerformPayment(payerTransaction, out paymentStatus, out paymentErrors, out paymentTrackingNumber) );
+                    resultofTransferPayment = new Models.PaymentResultModel
+                    {
+                        ResultOfPayment = paymentStatus,
+                        TrackingNumber = paymentTrackingNumber,
+                        Error = paymentErrors,
+                        TransactionType = Constants.TransactionTypes.Purchase
+                    };               
                 }
-                string completeQueryStringForRedirect = Constants.QueryStringFuncs.GenerateRequestStringAsync(returnUrl, new string[] { "ResultOfPayment" }, new string[] { paymentResult });
-                return Redirect(completeQueryStringForRedirect);                
+                string ResultOfPaymentJson = Newtonsoft.Json.JsonConvert.SerializeObject(resultofTransferPayment, new Newtonsoft.Json.JsonSerializerSettings { NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore });
+                string completeQueryStringForRedirect = Constants.QueryStringFuncs.GenerateRequestStringAsync(returnUrl, new string[] { "ResultOfPayment" }, new string[] { ResultOfPaymentJson });
+                return Redirect(completeQueryStringForRedirect);
             }
 
             // If we got this far, something failed, redisplay form
             return Redirect(returnUrl);
         }
 
-        private CASPaymentDTO.Domain.Transactions CreatePayerTransaction(Models.POSTModels.PaymentPOSTModel paymodel, CASPaymentDTO.Domain.Account PayerAccount)
+        private async Task<CASPaymentDTO.Domain.Transactions> CreatePayerTransaction(Models.POSTModels.PaymentPOSTModel paymodel, CASPaymentDTO.Domain.Account PayerAccount)
         {
-            CASPaymentDTO.Domain.Transactions payerTransaction = new CASPaymentDTO.Domain.Transactions();
-            CASPaymentDTO.Domain.Account PayeeAccount = accountHandler.Search(new CASPaymentDTO.Domain.Account { Accountnumber = paymodel.PayeeAccountNumber }).Cast<CASPaymentDTO.Domain.Account>().FirstOrDefault();
-            CASPaymentDTO.Domain.CurrencyType currencyItem = currencyHandler.Search(new CASPaymentDTO.Domain.CurrencyType { Charcode = paymodel.Currency }).Cast<CASPaymentDTO.Domain.CurrencyType>().FirstOrDefault();
-            CASPaymentDTO.Domain.TransactionType transactionTypeItem = transactionTypeHanlder.Search(new CASPaymentDTO.Domain.TransactionType { NameEn = Constants.TransactionTypes.Purchase }).Cast<CASPaymentDTO.Domain.TransactionType>().FirstOrDefault();
-            payerTransaction.Amount = (-1) * Math.Abs((Decimal) paymodel.Amount);
-            payerTransaction.CurrencyTypeItem = currencyItem;
-            payerTransaction.TransactionTypeItem = transactionTypeItem;
-            payerTransaction.DestinationAccountItem = PayerAccount;
-            payerTransaction.SourceAccountItem = PayeeAccount;
-            return payerTransaction;
+            return await Task.Run(() =>
+            {
+                CASPaymentDTO.Domain.Transactions payerTransaction = new CASPaymentDTO.Domain.Transactions();
+                CASPaymentDTO.Domain.Account PayeeAccount = accountHandler.Search(new CASPaymentDTO.Domain.Account { Accountnumber = paymodel.PayeeAccountNumber }).Cast<CASPaymentDTO.Domain.Account>().FirstOrDefault();
+                CASPaymentDTO.Domain.CurrencyType currencyItem = currencyHandler.Search(new CASPaymentDTO.Domain.CurrencyType { Charcode = paymodel.Currency }).Cast<CASPaymentDTO.Domain.CurrencyType>().FirstOrDefault();
+                CASPaymentDTO.Domain.TransactionType transactionTypeItem = transactionTypeHandler.Search(new CASPaymentDTO.Domain.TransactionType { NameEn = paymodel.TransactionType }).Cast<CASPaymentDTO.Domain.TransactionType>().FirstOrDefault();
+                payerTransaction.Amount = (-1) * Math.Abs((Decimal)paymodel.Amount);
+                payerTransaction.CurrencyTypeItem = currencyItem;
+                payerTransaction.TransactionTypeItem = transactionTypeItem;
+                payerTransaction.DestinationAccountItem = PayerAccount;
+                payerTransaction.SourceAccountItem = PayeeAccount;
+                payerTransaction.Description = paymodel.Description;
+                return payerTransaction;
+            }).ConfigureAwait(false);
         }
 
         private IEnumerable<SelectListItem> GetAccounts(long userID)

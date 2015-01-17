@@ -1,10 +1,13 @@
-﻿using Nito.AsyncEx;
+﻿using APIRestPayment.Constants;
+using Nito.AsyncEx;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Security.Claims;
 using System.Threading.Tasks;
+using System.Web;
 using System.Web.Http;
 
 namespace APIRestPayment.Controllers
@@ -130,47 +133,107 @@ namespace APIRestPayment.Controllers
 
         public HttpResponseMessage Post([FromBody] APIRestPayment.Models.POSTModels.JaldaThickPOSTModel jaldaThickPOSTModel)
         {
-            CASPaymentDTO.Domain.JaldaContract jaldaContract;
-            string ErrorMessage = "";
-            string BodyMessage = "";
-            string BodyTrailer = (jaldaThickPOSTModel.SerialNumber != null) ? ("Response to serial:" + jaldaThickPOSTModel.SerialNumber + " \r\n OrderNumber:" + jaldaThickPOSTModel.OrderNumber) : "-";
-            bool? terminateContract;
-            if (CheckValidityofPost(jaldaThickPOSTModel, out jaldaContract, out ErrorMessage, out terminateContract))
+            if (jaldaThickPOSTModel == null)
             {
-                bool HasError = false;
-                if (jaldaThickPOSTModel.JaldaThickType == Constants.JaldaThickTypes.Payment)
+                return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
                 {
-                    CASPaymentDTO.Domain.JaldaTicks jaldaThick;
-                    HasError = PerformPaymentThick(jaldaThickPOSTModel, out jaldaThick, out BodyMessage, out ErrorMessage);
-                    if (!HasError)
+                    meta = new Models.MetaModel
                     {
-                        //1 send Payment message
-                        return Request.CreateResponse(HttpStatusCode.OK, new Models.QueryResponseModel
+                        code = (int)HttpStatusCode.BadRequest,
+                        errorMessage= "The request is not recognized as a valid jalda thick."
+                    },
+                });
+            }
+            CASPaymentDTO.Domain.JaldaContract jaldaContract;
+            string ErrorMessage = null;
+            string BodyMessage = null;
+            string BodyTrailer = (jaldaThickPOSTModel.SerialNumber != null) ? ("Response to serial:" + jaldaThickPOSTModel.SerialNumber + " --- OrderNumber:" + jaldaThickPOSTModel.OrderNumber) : "-";
+            bool? terminateContract;
+            var identity = User.Identity as ClaimsIdentity;
+            var scopesGranted = identity.Claims.Where(c => c.Type == ClaimNames.OAuthScope).Select(c => c.Value);
+            if (scopesGranted.Contains(ScopeTypes.Jalda) || scopesGranted.Contains(ScopeTypes.AllAccess))
+            {
+                if (CheckValidityofPost(jaldaThickPOSTModel, out jaldaContract, out ErrorMessage, out terminateContract))
+                {
+                    bool HasError = false;
+                    if (jaldaThickPOSTModel.JaldaThickType == Constants.JaldaThickTypes.Payment)
+                    {
+                        CASPaymentDTO.Domain.JaldaTicks jaldaThick;
+                        HasError = PerformPaymentThick(jaldaThickPOSTModel, jaldaContract, out jaldaThick, out BodyMessage, out ErrorMessage);
+                        if (!HasError)
                         {
-                            meta = new Models.MetaModel
+                            //1 send Payment message
+                            return Request.CreateResponse(HttpStatusCode.OK, new Models.QueryResponseModel
                             {
-                                code = (int)HttpStatusCode.OK,
-                            },
-                            data = new Models.JaldaThickResponseModel 
-                            {
-                                JaldaThickStatus = BodyMessage,
-                                JaldaThick = this.TheModelFactory.Create(jaldaThick),
-                                Trailer = BodyTrailer,
-                            },
-                        });
+                                meta = new Models.MetaModel
+                                {
+                                    code = (int)HttpStatusCode.OK,
+                                },
+                                data = new Models.JaldaThickResponseModel
+                                {
+                                    JaldaThickStatus = BodyMessage,
+                                    JaldaThick = this.TheModelFactory.Create(jaldaThick),
+                                    Trailer = BodyTrailer,
+                                },
+                            });
+                        }
                     }
-                }
-                else if (jaldaThickPOSTModel.JaldaThickType == Constants.JaldaThickTypes.Start)
-                {
-                    HasError = PerformStartThick(jaldaThickPOSTModel, jaldaContract, out BodyMessage, out ErrorMessage);
-                    if (!HasError)
+                    else if (jaldaThickPOSTModel.JaldaThickType == Constants.JaldaThickTypes.Start)
                     {
-                        //1 send start message
-                        return Request.CreateResponse(HttpStatusCode.OK, new Models.QueryResponseModel
+                        Models.PaymentResultModel DepositPaymentResult;
+                        HasError = PerformStartThick(jaldaThickPOSTModel, jaldaContract, out BodyMessage, out ErrorMessage, out DepositPaymentResult);
+                        if (!HasError)
+                        {
+                            //1 send start message
+                            return Request.CreateResponse(HttpStatusCode.OK, new Models.QueryResponseModel
+                            {
+                                meta = new Models.MetaModel
+                                {
+                                    code = (int)HttpStatusCode.OK,
+                                },
+                                data = new Models.JaldaThickResponseModel
+                                {
+                                    DepositPaymentResult = DepositPaymentResult,
+                                    JaldaThickStatus = BodyMessage,
+                                    Trailer = BodyTrailer
+                                }
+                            });
+                        }
+
+                    }
+                    else if (jaldaThickPOSTModel.JaldaThickType == Constants.JaldaThickTypes.Terminate)
+                    {
+                        //1) Do Termination
+                        Models.PaymentResultModel DepositBackPaymentResult, TerminatePaymentResult;
+                        HasError = PerformTerminateThick(jaldaThickPOSTModel, jaldaContract, out BodyMessage, out ErrorMessage, out DepositBackPaymentResult, out TerminatePaymentResult);
+                        if (!HasError)
+                        {
+                            //2 send terminated message
+                            return Request.CreateResponse(HttpStatusCode.OK, new Models.QueryResponseModel
+                            {
+                                meta = new Models.MetaModel
+                                {
+                                    code = (int)HttpStatusCode.OK,
+                                },
+                                data = new Models.JaldaThickResponseModel
+                                {
+                                    DepositPaymentResult = DepositBackPaymentResult,
+                                    TerminatePaymentResult = TerminatePaymentResult,
+                                    JaldaThickStatus = BodyMessage,
+                                    Trailer = BodyTrailer
+                                }
+                            });
+                        }
+                    }
+                    //////////////////Begin Error Sending
+                    if (HasError)
+                    {
+                        return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
                         {
                             meta = new Models.MetaModel
                             {
-                                code = (int)HttpStatusCode.OK,
+                                code = (int)HttpStatusCode.BadRequest,
+                                errorMessage = ErrorMessage,
                             },
                             data = new Models.JaldaThickResponseModel
                             {
@@ -178,33 +241,17 @@ namespace APIRestPayment.Controllers
                                 Trailer = BodyTrailer
                             }
                         });
+                    }
+                    //////////////////End Error Sending
+                }
+                else
+                {
+                    Models.PaymentResultModel DepositBackPaymentResult=null, TerminatePaymentResult =null;
+                    if ((bool)terminateContract)
+                    {
+                        bool hasErrors = PerformTerminateThick(jaldaThickPOSTModel, jaldaContract, out BodyMessage, out ErrorMessage, out DepositBackPaymentResult, out TerminatePaymentResult);
                     }
 
-                }
-                else if (jaldaThickPOSTModel.JaldaThickType == Constants.JaldaThickTypes.Terminate)
-                {
-                    //1) Do Termination
-                    HasError = PerformTerminateThick(jaldaThickPOSTModel, jaldaContract, out BodyMessage, out ErrorMessage);
-                    if (!HasError)
-                    {
-                        //2 send terminated message
-                        return Request.CreateResponse(HttpStatusCode.OK, new Models.QueryResponseModel
-                        {
-                            meta = new Models.MetaModel
-                            {
-                                code = (int)HttpStatusCode.OK,
-                            },
-                            data = new Models.JaldaThickResponseModel
-                            {
-                                JaldaThickStatus = BodyMessage,
-                                Trailer = BodyTrailer
-                            }
-                        });
-                    }
-                }
-                //////////////////Begin Error Sending
-                if (HasError)
-                {
                     return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
                     {
                         meta = new Models.MetaModel
@@ -214,35 +261,14 @@ namespace APIRestPayment.Controllers
                         },
                         data = new Models.JaldaThickResponseModel
                         {
+                            DepositPaymentResult =DepositBackPaymentResult,
+                            TerminatePaymentResult = TerminatePaymentResult,
                             JaldaThickStatus = BodyMessage,
                             Trailer = BodyTrailer
                         }
                     });
                 }
-                //////////////////End Error Sending
             }
-            else
-            {
-                if ((bool)terminateContract)
-                {
-                    bool hasErrors = PerformTerminateThick(jaldaThickPOSTModel, jaldaContract, out BodyMessage, out ErrorMessage);
-                }
-
-                return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
-                {
-                    meta = new Models.MetaModel
-                    {
-                        code = (int)HttpStatusCode.BadRequest,
-                        errorMessage = ErrorMessage,
-                    },
-                    data = new Models.JaldaThickResponseModel
-                    {
-                        JaldaThickStatus = BodyMessage,
-                        Trailer = BodyTrailer
-                    }
-                });
-            }
-
             return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
             {
                 meta = new Models.MetaModel
@@ -262,32 +288,40 @@ namespace APIRestPayment.Controllers
         #endregion
 
         #region Jalda Thick Operations (Start - Payment - Terminate)
-        private bool PerformTerminateThick(Models.POSTModels.JaldaThickPOSTModel jaldaThickPOSTModel, CASPaymentDTO.Domain.JaldaContract jaldaContract, out string BodyMessage, out string ErrorMessage)
+        private bool PerformTerminateThick(Models.POSTModels.JaldaThickPOSTModel jaldaThickPOSTModel, CASPaymentDTO.Domain.JaldaContract jaldaContract, out string BodyMessage, out string ErrorMessage, out Models.PaymentResultModel DepositBackPaymentResult, out Models.PaymentResultModel TerminatePaymentResult)
         {
             //1) set  isterminated
             jaldaContract.Isterminated = true;
 
             //2) subtract deposit from Account. Deposit amount = maxAmount in contract. Before performing deposit we must ensure payer has enough credit in his/her account.
-            PaymentsController paymentController = new PaymentsController();
+            PaymentsController paymentController = new PaymentsController(HttpContext.Current);
 
             //3 create deposit and jalda transactions
             CASPaymentDTO.Domain.Transactions ReverseDepositPayerTransaction = GenerateDepositTransaction(jaldaContract, true);
             CASPaymentDTO.Domain.Transactions JaldaPayerTransaction = GenerateJaldaTransactions(jaldaContract);
-            CASPaymentDTO.Domain.JaldaTicks jaldaThick = this.TheModelFactory.Parse(jaldaThickPOSTModel, out ErrorMessage);
+            CASPaymentDTO.Domain.JaldaTicks jaldaThick = this.TheModelFactory.Parse(jaldaThickPOSTModel, jaldaContract, out ErrorMessage);
             jaldaThick.Type = Constants.JaldaThickTypes.Terminate;
             if (ReverseDepositPayerTransaction != null)
             {
+
                 using (var session = WebApiApplication.SessionFactory.OpenSession())
                 using (var tx = session.BeginTransaction())
                 {
                     try
                     {
-                        //3 Pay the deposit back                                      
-                        paymentController.PerformPayment(ReverseDepositPayerTransaction);
+                        //3 Pay the deposit back              
+                        string paymentStatus, paymentError, paymentTrackingNumber;
+                        paymentController.PerformPayment(ReverseDepositPayerTransaction, out paymentStatus, out paymentError, out paymentTrackingNumber);
+                        DepositBackPaymentResult = TheModelFactory.Create(paymentStatus, paymentError, paymentTrackingNumber);
                         //4 Pay Jalda Transaction to payee
                         if (JaldaPayerTransaction.Amount != 0)
                         {
-                            paymentController.PerformPayment(JaldaPayerTransaction);
+                            paymentController.PerformPayment(JaldaPayerTransaction, out paymentStatus, out paymentError, out paymentTrackingNumber);
+                            TerminatePaymentResult = TheModelFactory.Create(paymentStatus, paymentError, paymentTrackingNumber);
+                        }
+                        else
+                        {
+                            TerminatePaymentResult = null;
                         }
 
                         //5 save Terminate thick
@@ -305,17 +339,21 @@ namespace APIRestPayment.Controllers
                         BodyMessage = "Error";
                         ErrorMessage = "Problem in clearing jalda payments";
                         tx.Rollback();
+                        DepositBackPaymentResult = null;
+                        TerminatePaymentResult = null;
                         return true;
                     }
                 }
             }
             BodyMessage = "Error";
             ErrorMessage = "Could not create reverse deposit";
+            DepositBackPaymentResult = null;
+            TerminatePaymentResult = null;
             return true;
         }
-        private bool PerformPaymentThick(Models.POSTModels.JaldaThickPOSTModel jaldaThickPOSTModel, out CASPaymentDTO.Domain.JaldaTicks jaldaThick, out string BodyMessage, out string ErrorMessage)
+        private bool PerformPaymentThick(Models.POSTModels.JaldaThickPOSTModel jaldaThickPOSTModel, CASPaymentDTO.Domain.JaldaContract jaldaContract, out CASPaymentDTO.Domain.JaldaTicks jaldaThick, out string BodyMessage, out string ErrorMessage)
         {
-            jaldaThick = this.TheModelFactory.Parse(jaldaThickPOSTModel, out ErrorMessage);
+            jaldaThick = this.TheModelFactory.Parse(jaldaThickPOSTModel, jaldaContract, out ErrorMessage);
             using (var session = WebApiApplication.SessionFactory.OpenSession())
             using (var tx = session.BeginTransaction())
             {
@@ -340,27 +378,29 @@ namespace APIRestPayment.Controllers
                 }
             }
         }
-        private bool PerformStartThick(Models.POSTModels.JaldaThickPOSTModel jaldaThickPOSTModel, CASPaymentDTO.Domain.JaldaContract jaldaContract, out string BodyMessage, out string ErrorMessage)
+        private bool PerformStartThick(Models.POSTModels.JaldaThickPOSTModel jaldaThickPOSTModel, CASPaymentDTO.Domain.JaldaContract jaldaContract, out string BodyMessage, out string ErrorMessage, out Models.PaymentResultModel DepositPaymentResult)
         {
             //1) set initial Serial Number and isStarted
             jaldaContract.Startserialnumber = (int)jaldaThickPOSTModel.SerialNumber;
             jaldaContract.IsStarted = true;
 
             //2) subtract deposit from Account. Deposit amount = maxAmount in contract. Before performing deposit we must ensure payer has enough credit in his/her account.
-            PaymentsController paymentController = new PaymentsController();
+            PaymentsController paymentController = new PaymentsController(HttpContext.Current);
             //Caution: Deadlock may happen
 
             //bool hasEnoughMoney =paymentController.CheckBalance(jaldaContract.SourceAccountItem, jaldaContract.Maxamount).Result;
             bool hasEnoughMoney = AsyncContext.Run(() => paymentController.CheckBalance(jaldaContract.SourceAccountItem, jaldaContract.Maxamount));
             if (hasEnoughMoney)
             {
-                CASPaymentDTO.Domain.Transactions DepositPayerAccount = GenerateDepositTransaction(jaldaContract, false);
-                if (DepositPayerAccount != null)
+                CASPaymentDTO.Domain.Transactions DepositPayerTransaction = GenerateDepositTransaction(jaldaContract, false);
+                if (DepositPayerTransaction != null)
                 {
-                    string paymentResult = paymentController.PerformPayment(DepositPayerAccount);
-                    if (paymentResult == "Success")
+                    string paymentStatus, paymentError, paymentTrackingNumber;
+                    paymentController.PerformPayment(DepositPayerTransaction, out paymentStatus, out paymentError, out paymentTrackingNumber);
+                    DepositPaymentResult = TheModelFactory.Create(paymentStatus, paymentError, paymentTrackingNumber);
+                    if (paymentStatus == Constants.PaymentStatusTypes.Completed)
                     {
-                        CASPaymentDTO.Domain.JaldaTicks jaldaThick = this.TheModelFactory.Parse(jaldaThickPOSTModel, out ErrorMessage);
+                        CASPaymentDTO.Domain.JaldaTicks jaldaThick = this.TheModelFactory.Parse(jaldaThickPOSTModel, jaldaContract, out ErrorMessage);
                         using (var session = WebApiApplication.SessionFactory.OpenSession())
                         using (var tx = session.BeginTransaction())
                         {
@@ -399,6 +439,7 @@ namespace APIRestPayment.Controllers
                 {
                     BodyMessage = "Error";
                     ErrorMessage = "Problem in creating deposit transaction";
+                    DepositPaymentResult = null;
                     return true;
                 }
             }
@@ -406,6 +447,7 @@ namespace APIRestPayment.Controllers
             {
                 BodyMessage = "Error";
                 ErrorMessage = "Payer does not have enough money";
+                DepositPaymentResult = null;
                 return true;
             }
         }
@@ -476,8 +518,19 @@ namespace APIRestPayment.Controllers
 
         private bool CheckValidityofPost(Models.POSTModels.JaldaThickPOSTModel jaldaThickPOSTModel, out CASPaymentDTO.Domain.JaldaContract relativeJaldaContract, out string ErrorMessage, out bool? terminateContract)
         {
+            var identity = User.Identity as ClaimsIdentity;
+            var jaldaIdString = identity.Claims.Where(c => c.Type == ClaimNames.JaldaContractId).Select(c => c.Value).FirstOrDefault();
+            long JaldaContractID;
+            if (!long.TryParse(jaldaIdString, out JaldaContractID))
+            {
+                terminateContract = false;
+                relativeJaldaContract = null;
+                ErrorMessage = "Cannot retrieve jalda contract";
+                return false;
+            }
+
             bool result = true;
-            if (string.IsNullOrEmpty(jaldaThickPOSTModel.JaldaThickType) || jaldaThickPOSTModel.SerialNumber == null || jaldaThickPOSTModel.JaldaContractID == null)
+            if (string.IsNullOrEmpty(jaldaThickPOSTModel.JaldaThickType) || jaldaThickPOSTModel.SerialNumber == null || JaldaContractID == null)
             {
                 terminateContract = false;
                 relativeJaldaContract = null;
@@ -486,8 +539,8 @@ namespace APIRestPayment.Controllers
             }
             try
             {
-                relativeJaldaContract = jaldaContractHandler.GetEntity((long)jaldaThickPOSTModel.JaldaContractID);
 
+                relativeJaldaContract = jaldaContractHandler.GetEntity(JaldaContractID);
                 ///////////////////////////////////////////////
 
                 //Check if contract is already terminated
@@ -568,12 +621,6 @@ namespace APIRestPayment.Controllers
                 terminateContract = false;
                 return false;
             }
-        }
-
-        private bool CheckValidityofPost(CASPaymentDTO.Domain.JaldaContract jaldaContract, out string ErrorMessage)
-        {
-            ErrorMessage = "";
-            return true;
         }
 
         #endregion

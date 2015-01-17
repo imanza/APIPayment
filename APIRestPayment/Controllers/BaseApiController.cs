@@ -26,6 +26,11 @@ namespace APIRestPayment.Controllers
             }
         }
 
+        //protected ModelFactory ChangeModelFactorySession(NHibernate.ISessionFactory sessioFactory ,HttpRequestMessage request){
+        //    _modelFactory = new ModelFactory(sessioFactory, request);
+        //    return _modelFactory;
+        //}
+
         protected RoleTypes CurrentUserRoleType
         {
             get
@@ -34,7 +39,7 @@ namespace APIRestPayment.Controllers
                 var identity = User.Identity as ClaimsIdentity;
                 if (identity != null)
                 {
-                    string identityRole = identity.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value).FirstOrDefault();
+                    string identityRole = identity.Claims.Where(c => c.Type == ClaimNames.Role).Select(c => c.Value).FirstOrDefault();
                     string gg = identity.RoleClaimType;
                     var IsAdministrator = (identityRole == RoleTypes.Administrator.ToString());
                     if (IsAdministrator) return RoleTypes.Administrator;

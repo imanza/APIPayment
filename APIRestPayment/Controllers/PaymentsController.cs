@@ -11,14 +11,27 @@ using System.Collections;
 using System.Threading.Tasks;
 using System.Security.Claims;
 using System.Web;
+using Nito.AsyncEx;
+//using System.Web.Http.Cors;
 
 
 
 namespace APIRestPayment.Controllers
 {
-
+    [Authorize]
     public class PaymentsController : BaseApiController
     {
+        HttpContext mainContext;
+
+        public PaymentsController(HttpContext context)
+        {
+            mainContext = context;
+        }
+        public PaymentsController()
+        {
+
+        }
+
         #region Handlers
 
         CASPaymentDAO.DataHandler.UsersDataHandler usersHandler = new CASPaymentDAO.DataHandler.UsersDataHandler(WebApiApplication.SessionFactory);
@@ -27,6 +40,8 @@ namespace APIRestPayment.Controllers
         CASPaymentDAO.DataHandler.SettingDataDataHandler settingDataHandler = new CASPaymentDAO.DataHandler.SettingDataDataHandler(WebApiApplication.SessionFactory);
         CASPaymentDAO.DataHandler.AccountDailyActivityDataHandler accountDailyActivityHandler = new CASPaymentDAO.DataHandler.AccountDailyActivityDataHandler(WebApiApplication.SessionFactory);
         CASPaymentDAO.DataHandler.PaymentStatusDataHandler paymentStatusHandler = new CASPaymentDAO.DataHandler.PaymentStatusDataHandler(WebApiApplication.SessionFactory);
+        CASPaymentDAO.DataHandler.CurrencyTypeDataHandler currencyHandler = new CASPaymentDAO.DataHandler.CurrencyTypeDataHandler(WebApiApplication.SessionFactory);
+        CASPaymentDAO.DataHandler.TransactionTypeDataHandler transactionTypeHandler = new CASPaymentDAO.DataHandler.TransactionTypeDataHandler(WebApiApplication.SessionFactory);
 
         #endregion
 
@@ -43,13 +58,13 @@ namespace APIRestPayment.Controllers
                     var routeData = Request.GetRouteData();
                     var resourceID = routeData.Values["id"] as string;
                     //
-                    
+
                     var identity = User.Identity as ClaimsIdentity;
                     if (identity != null)
                     {
                         var ss = identity.Claims.Where(x => x.Type == ClaimTypes.NameIdentifier).FirstOrDefault().Value;
                         long currentUserId;
-                        if (long.TryParse(ss , out currentUserId))
+                        if (long.TryParse(ss, out currentUserId))
                         {
                             CASPaymentDTO.Domain.Users currentUser = usersHandler.GetEntity(currentUserId);
                             foreach (var item in currentUser.AccountS)
@@ -62,70 +77,102 @@ namespace APIRestPayment.Controllers
                         }
                     }
                 }
-                    /////////////////////////////
-                    return DataAccessTypes.Anonymous;
-                }
+                /////////////////////////////
+                return DataAccessTypes.Anonymous;
+            }
         }
 
         #endregion
 
         #region GET
 
-        
-   // [Filters.GeneralAuthorization]
-    public HttpResponseMessage GetPayment(long id)
+
+        // [Filters.GeneralAuthorization]
+        public HttpResponseMessage GetPayment(long id)
         {
-            try
+            var identity = User.Identity as ClaimsIdentity;
+            if (identity == null)
             {
-                CASPaymentDTO.Domain.Transactions searchedTransaction= this.transactionHandler.GetEntity(id);
-                //if (id != null)
-                //{
-                   
-                //}
-                //else
-                //{
-                //    long g = GetIdofCurrentUser();
-                //    searchedTransaction = this.transactionHandler.Search(new CASPaymentDTO.Domain.Transactions{Trackingnumber = trackingNumber}).
-                //        Cast<CASPaymentDTO.Domain.Transactions>().Where(x =>
-                //         string   
-                //        );
-                //}
-                DataAccessTypes currentRequest = CurrentUserAccessType;
-                if (currentRequest != DataAccessTypes.Anonymous)
+                return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
                 {
-                    return Request.CreateResponse(HttpStatusCode.OK, new Models.QueryResponseModel
+                    meta = new Models.MetaModel
                     {
-                        meta = new Models.MetaModel
+                        code = (int)HttpStatusCode.BadRequest,
+                        errorMessage = "The Identity of the user is not known"
+                    }
+                });
+            }
+            else
+            {
+                var scopesGranted = identity.Claims.Where(c => c.Type == ClaimNames.OAuthScope).Select(c => c.Value);
+                if (scopesGranted.Contains(ScopeTypes.Report) || scopesGranted.Contains(ScopeTypes.AllAccess))
+                {
+                    try
+                    {
+                        if (CurrentUserAccessType != DataAccessTypes.Anonymous)
                         {
-                            code = (int)HttpStatusCode.OK
-                        },
-                        data = TheModelFactory.Create(searchedTransaction)
-                    });
+                            CASPaymentDTO.Domain.Transactions searchedTransaction = this.transactionHandler.GetEntity(id);
+                            if (searchedTransaction != null)
+                            {
+                                return Request.CreateResponse(HttpStatusCode.OK, new Models.QueryResponseModel
+                                {
+                                    meta = new Models.MetaModel
+                                    {
+                                        code = (int)HttpStatusCode.OK
+                                    },
+                                    data = TheModelFactory.Create(searchedTransaction)
+                                });
+                            }
+                            else
+                            {
+                                return Request.CreateResponse(HttpStatusCode.NotFound, new Models.QueryResponseModel
+                                {
+                                    meta = new Models.MetaModel
+                                    {
+                                        code = (int)HttpStatusCode.NotFound,
+                                        errorMessage = "Payment was not found"
+                                    }
+                                });
+                            }
+                        }
+                        else
+                        {
+                            return Request.CreateResponse(HttpStatusCode.Unauthorized, new Models.QueryResponseModel
+                            {
+                                meta = new Models.MetaModel
+                                {
+                                    code = (int)HttpStatusCode.Unauthorized,
+                                    errorMessage = "Cannot access requested resource"
+                                }
+                            });
+                        }
+                    }
+                    catch (NHibernate.ObjectNotFoundException)
+                    {
+                        return Request.CreateResponse(HttpStatusCode.NotFound, new Models.QueryResponseModel
+                        {
+                            meta = new Models.MetaModel
+                            {
+                                code = (int)HttpStatusCode.NotFound,
+                                errorMessage = "Item was not found"
+                            }
+                        });
+                    }
                 }
                 else
                 {
+                    //Application Does Not Have permission to view payments
                     return Request.CreateResponse(HttpStatusCode.Unauthorized, new Models.QueryResponseModel
                     {
                         meta = new Models.MetaModel
                         {
                             code = (int)HttpStatusCode.Unauthorized,
-                            errorMessage = "Cannot access requested resource"
-                        }
+                            errorMessage = "Not enough permisions granted to view payments!"
+                        },
                     });
                 }
             }
-            catch (NHibernate.ObjectNotFoundException)
-            {
-                return Request.CreateResponse(HttpStatusCode.NotFound, new Models.QueryResponseModel
-                {
-                    meta = new Models.MetaModel
-                    {
-                        code = (int)HttpStatusCode.NotFound,
-                        errorMessage = "Item was not found"
-                    }
-                });
-            }
-        }    
+        }
 
         private long GetIdofCurrentUser()
         {
@@ -155,74 +202,94 @@ namespace APIRestPayment.Controllers
             return -1;
         }
 
-        
 
-      //  [Filters.GeneralAuthorization]
-        public HttpResponseMessage Get(int page = 0, int pageSize = 10 ,string trackingNumber="", string startDate="", string endDate="")
+
+        //  [Filters.GeneralAuthorization]
+        public HttpResponseMessage Get(int page = 0, int pageSize = 10, string trackingNumber = "", string startDate = "", string endDate = "")
         {
             IList<CASPaymentDTO.Domain.Transactions> result = new List<CASPaymentDTO.Domain.Transactions>();
-            if (base.CurrentUserAccessType != DataAccessTypes.Administrator)
+            var identity = User.Identity as ClaimsIdentity;
+            if (identity == null)
             {
-                var identity = User.Identity as ClaimsIdentity;
-                if (identity == null)
+                return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
                 {
-                    return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
+                    meta = new Models.MetaModel
                     {
-                        meta = new Models.MetaModel
-                        {
-                            code = (int)HttpStatusCode.BadRequest,
-                            errorMessage = "The Identity of the user is not known"
-                        }
-                    });
-                }
-                else
-                {
-                    bool isTrackingNumberParamNull = string.IsNullOrEmpty(trackingNumber);
-                    bool isStartDateParamNull = string.IsNullOrEmpty(startDate);
-                    bool isEndDateParamNull = string.IsNullOrEmpty(endDate);
-
-                    long currentUserId = GetIdofCurrentUser(identity);
-                    if (currentUserId != -1)
-                    {
-                        foreach (var item in usersHandler.GetEntity(currentUserId).AccountS)
-                        {
-
-                            result = result.Concat(item.DestinationTransactionsS.Where(x => x.TransactionTypeItem.NameEn != TransactionTypes.Deposit)).ToList();
-                            
-                            //&&
-                            //    ( ( string.IsNullOrEmpty(trackingNumber)  (!string.IsNullOrEmpty(trackingNumber) && x.Trackingnumber == trackingNumber))
-                            //     (!string.IsNullOrEmpty(startDate) && x.Executiondatetime >= DateFuncs.ToGregorianDate(DateFuncs.ConvertStringToDate(startDate))) 
-
-                            //    )
-                                
-                        }
-                        if (!(isTrackingNumberParamNull && isStartDateParamNull && isEndDateParamNull))
-                        {
-                            result = result.Where(x =>
-                                (isTrackingNumberParamNull || (!isTrackingNumberParamNull && x.Trackingnumber == trackingNumber)) &&
-                                (isStartDateParamNull || (!isStartDateParamNull && x.Executiondatetime >= DateFuncs.ToGregorianDate(DateFuncs.ConvertStringToDate(startDate)))) &&
-                                (isEndDateParamNull || (!isEndDateParamNull && x.Executiondatetime <= DateFuncs.ToGregorianDate(DateFuncs.ConvertStringToDate(endDate)))) 
-                                ).ToList();
-                        }
-                        result = result.OrderBy(x => x.Executiondatetime).OrderBy(x => x.Id).ToList();
+                        code = (int)HttpStatusCode.BadRequest,
+                        errorMessage = "The Identity of the user is not known"
                     }
-                    else
-                    {
-                        return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
-                        {
-                            meta = new Models.MetaModel
-                            {
-                                code = (int)HttpStatusCode.BadRequest,
-                                errorMessage = "Bad Identity set for user"
-                            }
-                        });
-                    }
-                }
+                });
             }
             else
             {
-                result = this.transactionHandler.SelectAll().Cast<CASPaymentDTO.Domain.Transactions>().ToList();
+
+                var scopesGranted = identity.Claims.Where(c => c.Type == ClaimNames.OAuthScope).Select(c => c.Value);
+                if (scopesGranted.Contains(ScopeTypes.Report) || scopesGranted.Contains(ScopeTypes.AllAccess))
+                {
+
+                    if (base.CurrentUserAccessType != DataAccessTypes.Administrator)
+                    {
+                        bool isTrackingNumberParamNull = string.IsNullOrEmpty(trackingNumber);
+                        bool isStartDateParamNull = string.IsNullOrEmpty(startDate);
+                        bool isEndDateParamNull = string.IsNullOrEmpty(endDate);
+
+                        long currentUserId = GetIdofCurrentUser(identity);
+                        if (currentUserId != -1)
+                        {
+                            foreach (var item in usersHandler.GetEntity(currentUserId).AccountS)
+                            {
+
+                                result = result.Concat(item.DestinationTransactionsS.Where(x => x.TransactionTypeItem.NameEn != TransactionTypes.Deposit)).ToList();
+
+                                //&&
+                                //    ( ( string.IsNullOrEmpty(trackingNumber)  (!string.IsNullOrEmpty(trackingNumber) && x.Trackingnumber == trackingNumber))
+                                //     (!string.IsNullOrEmpty(startDate) && x.Executiondatetime >= DateFuncs.ToGregorianDate(DateFuncs.ConvertStringToDate(startDate))) 
+
+                                //    )
+
+                            }
+                            if (!(isTrackingNumberParamNull && isStartDateParamNull && isEndDateParamNull))
+                            {
+                                result = result.Where(x =>
+                                    (isTrackingNumberParamNull || (!isTrackingNumberParamNull && x.Trackingnumber == trackingNumber)) &&
+                                    (isStartDateParamNull || (!isStartDateParamNull && x.Executiondatetime >= DateFuncs.ToGregorianDate(DateFuncs.ConvertStringToDate(startDate)))) &&
+                                    (isEndDateParamNull || (!isEndDateParamNull && x.Executiondatetime <= DateFuncs.ToGregorianDate(DateFuncs.ConvertStringToDate(endDate))))
+                                    ).ToList();
+                            }
+                            result = result.OrderBy(x => x.Executiondatetime).OrderBy(x => x.Id).ToList();
+                        }
+                        else
+                        {
+                            return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
+                            {
+                                meta = new Models.MetaModel
+                                {
+                                    code = (int)HttpStatusCode.BadRequest,
+                                    errorMessage = "Bad Identity set for user"
+                                }
+                            });
+                        }
+                    }
+
+                    else
+                    {
+                        result = this.transactionHandler.SelectAll().Cast<CASPaymentDTO.Domain.Transactions>().ToList();
+                    }
+                }
+                else
+                {
+                    //Application is not granted to access resource
+                    return Request.CreateResponse(HttpStatusCode.Unauthorized, new Models.QueryResponseModel
+                        {
+                            meta = new Models.MetaModel
+                            {
+                                code = (int)HttpStatusCode.Unauthorized,
+                                errorMessage = "Not enough permissions for the application"
+                            }
+                        });
+                }
             }
+
             //////////////////////////////////////////////////
             var totalCount = result.Count();
             var totalPages = (int)Math.Ceiling((double)totalCount / pageSize);
@@ -254,6 +321,7 @@ namespace APIRestPayment.Controllers
             });
         }
 
+        [AllowAnonymous]
         public HttpResponseMessage Get([FromUri]string PaymentPOSTModelJson/* string TransactionType,string Currency, string Amount,string PayeeAccountNumber,string RedirectUrl,string RequestNonce,string RequestDate*/)
         {
             string ParseErrorMessage;
@@ -300,36 +368,6 @@ namespace APIRestPayment.Controllers
                     }
                 });
             }
-            //if (Decimal.TryParse(Amount, out paymentAmount))
-            //{
-            //    Models.POSTModels.PaymentPOSTModel paymentPOSTModel = new Models.POSTModels.PaymentPOSTModel
-            //    {
-            //        Amount = paymentAmount,
-            //        Currency = Currency,
-            //        PayeeAccountNumber = PayeeAccountNumber,
-            //        RedirectUrl = RedirectUrl,
-            //         //RequestDate = DateFuncs.ConvertStringToDate(RequestDate),
-            //         RequestNonce = RequestNonce,
-            //         TransactionType = TransactionType
-            //    };
-            //    var response = Request.CreateResponse(HttpStatusCode.Moved /*, new Object[]{paymentPOSTModel , transactionPAYEE} */);
-            //    string fullyQualifiedUrl = Request.RequestUri.GetLeftPart(UriPartial.Authority);
-            //    response.Headers.Location = new Uri(fullyQualifiedUrl + "/APIRestPayment" +"/Home/sales");
-            //    //response.Headers.Location = new Uri( , UriKind.Relative);
-            //    return response;
-            //}
-            //else
-            //{
-            //    return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
-            //    {
-            //        meta = new Models.MetaModel
-            //        {
-            //            code =(int) HttpStatusCode.BadRequest,
-            //            errorType = "incompatible data type",
-            //            errorMessage = "Amount is not convertible "
-            //        }
-            //    });
-            //}
         }
 
 
@@ -337,47 +375,237 @@ namespace APIRestPayment.Controllers
 
         #region POST
 
-
-        public HttpResponseMessage Post([FromBody] APIRestPayment.Models.POSTModels.PaymentPOSTModel paymentPOSTModel)
+        
+        //[Route("api/payments/{PaymentPOSTModelJson}")]
+        [HttpPost]
+        public async Task<HttpResponseMessage> Post([FromBody] Models.POSTModels.PaymentPOSTModel PaymentPOSTModelJson)
         {
-
-            string ParseErrorMessage;
-            CASPaymentDTO.Domain.Transactions transactionPAYEE = TheModelFactory.Parse(paymentPOSTModel, out ParseErrorMessage);
-
-            if (transactionPAYEE == null)
-            {
-                return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
+            mainContext = HttpContext.Current;
+            return await Task.Run(async () =>
                 {
-                    meta = new Models.MetaModel
+                    var identity = User.Identity as ClaimsIdentity;
+                    var scopesGranted = identity.Claims.Where(c => c.Type == ClaimNames.OAuthScope).Select(c => c.Value);
+                    if (scopesGranted.Contains(ScopeTypes.Report) || scopesGranted.Contains(ScopeTypes.AllAccess))
                     {
-                        code = (int)HttpStatusCode.BadRequest,
-                        errorMessage = ParseErrorMessage,
+
+                        string ParseErrorMessage;
+                        //Newtonsoft.Json.JsonSerializerSettings jj = new Newtonsoft.Json.JsonSerializerSettings { NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore };
+                        //APIRestPayment.Models.POSTModels.PaymentPOSTModel paymodel = (APIRestPayment.Models.POSTModels.PaymentPOSTModel)Newtonsoft.Json.JsonConvert.DeserializeObject(PaymentPOSTModelJson, typeof(APIRestPayment.Models.POSTModels.PaymentPOSTModel), jj);
+
+                        APIRestPayment.Models.POSTModels.PaymentPOSTModel paymodel = PaymentPOSTModelJson;
+                        if (this.CheckValidityOFPOSTModel(paymodel, out ParseErrorMessage))
+                        {
+                            if (paymodel.TransactionType == TransactionTypes.Transfer)
+                            {
+                                return await HandleTransferRequest(paymodel, scopesGranted);
+                            }
+                            else
+                            {
+                                return Request.CreateResponse(HttpStatusCode.NotImplemented, new Models.QueryResponseModel
+                                {
+                                    meta = new Models.MetaModel
+                                    {
+                                        code = (int)HttpStatusCode.NotImplemented,
+                                        errorMessage = "Other transactions are not supported",
+                                    }
+                                });
+                            }
+                        }
+                        else
+                        {
+                            return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
+                            {
+                                meta = new Models.MetaModel
+                                {
+                                    code = (int)HttpStatusCode.BadRequest,
+                                    errorMessage = ParseErrorMessage,
+                                }
+                            });
+                        }
                     }
-                });
+                    else
+                    {
+                        return Request.CreateResponse(HttpStatusCode.Unauthorized, new Models.QueryResponseModel
+                        {
+                            meta = new Models.MetaModel
+                            {
+                                code = (int)HttpStatusCode.Unauthorized,
+                                errorMessage = "Application does not have permission to make payments",
+                            }
+                        });
+                    }
+                }).ConfigureAwait(false);
+        }
+
+
+        private async Task<HttpResponseMessage> HandleTransferRequest(Models.POSTModels.PaymentPOSTModel paymodel, IEnumerable<string> scopesGranted)
+        {
+            return await Task.Run(async () =>
+             {
+                 string HashPaymentCode = "";
+                 if (CheckContainsPaymentCode(paymodel, out HashPaymentCode))
+                 {
+                     CASPaymentDTO.Domain.Account PayerAccount = accountHandler.Search(new CASPaymentDTO.Domain.Account { Accountnumber = paymodel.PayerAccountNumber }).Cast<CASPaymentDTO.Domain.Account>().FirstOrDefault();
+                     string paymentErrorResult = "";
+                     if (!AsyncContext.Run(() => this.CheckAccountAndPINCode(PayerAccount, paymodel.PaymentPIN)))
+                     {
+                         //PIN is incorrect
+                         paymentErrorResult = "Error: Incorrect Pin";
+                     }
+                     else if (!AsyncContext.Run(() => this.CheckBalance(PayerAccount, (Decimal)paymodel.Amount)))
+                     {
+                         //Not Enough Money in Bank Account
+                         paymentErrorResult = "Error: Not Enough Money";
+                     }
+                     else if (!AsyncContext.Run(() => this.CheckUpperLimit(PayerAccount, (Decimal)paymodel.Amount, Constants.TransactionTypes.Transfer)))
+                     {
+                         //Limit for purchase today is reached
+                         paymentErrorResult = "Error: Upper Limit";
+                     }
+                     else
+                     {
+                         //Do payment job
+                         CASPaymentDTO.Domain.Transactions payerTransaction = await this.CreatePayerTransaction(paymodel, PayerAccount);
+                         string paymentStatus, trackingNumber, errorPayment;
+                         this.PerformPayment(payerTransaction, out paymentStatus, out errorPayment, out trackingNumber);
+                         Models.PaymentResultModel resultofTransferPayment = TheModelFactory.Create(paymentStatus, errorPayment, trackingNumber);
+                         return Request.CreateResponse((resultofTransferPayment.ResultOfPayment == PaymentStatusTypes.Completed) ? HttpStatusCode.OK : HttpStatusCode.InternalServerError, new Models.QueryResponseModel
+                         {
+                             meta = new Models.MetaModel
+                             {
+                                 code = (int)((resultofTransferPayment.ResultOfPayment == PaymentStatusTypes.Completed) ? HttpStatusCode.OK : HttpStatusCode.InternalServerError)
+                             },
+                             data = resultofTransferPayment
+                         });
+                     }
+                     HttpContext.Current = mainContext;
+                     return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
+                     {
+                         meta = new Models.MetaModel
+                         {
+                             code = (int)HttpStatusCode.BadRequest
+                         },
+                         data = TheModelFactory.Create(PaymentStatusTypes.Canceled, paymentErrorResult, null)
+                     });
+
+                 }
+                 else
+                 {
+                     if (scopesGranted.Contains(ScopeTypes.AllAccess))
+                     {
+                         paymodel.HashPaymentCode = HashPaymentCode;
+                         HttpContext.Current = mainContext;
+                         Models.POSTModels.TransferPaymentResultModel transferResultModel = TheModelFactory.Create(paymodel);
+                         return Request.CreateResponse(HttpStatusCode.OK, new Models.QueryResponseModel
+                         {
+                             meta = new Models.MetaModel
+                             {
+                                 code = (int)HttpStatusCode.OK
+                             },
+                             data = transferResultModel
+                         });
+                     }
+                     else
+                     {
+                         HttpContext.Current = mainContext;
+                         return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
+                         {
+                             meta = new Models.MetaModel
+                             {
+                                 code = (int)HttpStatusCode.BadRequest,
+                                 errorMessage = "Please provide body of your request with hash of payment code.",
+                             }
+                         });
+                     }
+                 }
+             }
+         ).ConfigureAwait(false);
+        }
+
+        private bool CheckContainsPaymentCode(Models.POSTModels.PaymentPOSTModel paymodel, out string HashPaymentCode)
+        {
+            CASPaymentDTO.Domain.Account PayeeAccount = accountHandler.Search(new CASPaymentDTO.Domain.Account { Accountnumber = paymodel.PayeeAccountNumber }).Cast<CASPaymentDTO.Domain.Account>().FirstOrDefault();
+            if (!string.IsNullOrEmpty(paymodel.HashPaymentCode))
+            {
+                if (paymodel.HashPaymentCode == (PayeeAccount.Paymentcode).GetHashCode().ToString())
+                {
+                    HashPaymentCode = null;
+                    return true;
+                }
             }
-
-            //if (CheckValidityOFPOST(transactionPAYEE))
-            //{
-
-            //}
-
-
-            var response = Request.CreateResponse(HttpStatusCode.Moved /*, new Object[]{paymentPOSTModel , transactionPAYEE} */);
-            string fullyQualifiedUrl = Request.RequestUri.GetLeftPart(UriPartial.Authority);
-            response.Headers.Location = new Uri(fullyQualifiedUrl + "/Home/sales");
-            //response.Headers.Location = new Uri( , UriKind.Relative);
-            return response;
-
-
+            HashPaymentCode = (PayeeAccount.Paymentcode).GetHashCode().ToString();
+            return false;
         }
 
         #endregion
 
         #region Checks
 
+
+        //[EnableCors(Constants.Paths.OAuthServerPath, // Origin
+        //      "*",                     // Request headers
+        //      "POST"                   // HTTP methods
+        //)]
+        
+        //[Route("api/payments/check")]        
+        [HttpPost]
+        [ActionName("check")]
+        public async Task<HttpResponseMessage> Check([FromBody]Models.POSTModels.OAuthServerCheckUserAccountPOSTModel OAuthServerCheckUserAccountPOSTModelJSON)
+        {
+
+            if (CurrentUserRoleType == RoleTypes.Administrator)
+            {
+                var identity = User.Identity as ClaimsIdentity;
+                var scopesGranted = identity.Claims.Where(c => c.Type == ClaimNames.OAuthScope).Select(c => c.Value);
+                if (scopesGranted.Contains(ScopeTypes.AllAccess))
+                {
+                    string ErrorMessage;
+                    if (!CheckValidityOFPOSTModel(OAuthServerCheckUserAccountPOSTModelJSON, out ErrorMessage))
+                    {
+                        return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
+                        {
+                            meta = new Models.MetaModel
+                            {
+                                code = (int)HttpStatusCode.BadRequest,
+                                errorMessage = ErrorMessage
+                            },
+                        });
+                    }
+                    CASPaymentDTO.Domain.Account PayerAccNo = accountHandler.Search(new CASPaymentDTO.Domain.Account { Accountnumber = OAuthServerCheckUserAccountPOSTModelJSON.PayerAccountNumber }).Cast<CASPaymentDTO.Domain.Account>().FirstOrDefault();
+                    return Request.CreateResponse(HttpStatusCode.OK, new Models.QueryResponseModel
+                    {
+                        data = (await this.CheckAccountAndPINCode(PayerAccNo, OAuthServerCheckUserAccountPOSTModelJSON.PINCode)) ? true.ToString() : false.ToString(),
+                    });
+                }
+            }
+            return Request.CreateResponse(HttpStatusCode.Unauthorized, new Models.QueryResponseModel
+            {
+                meta = new Models.MetaModel
+                {
+                    code = (int)HttpStatusCode.Unauthorized,
+                    errorMessage = "Access is denied."
+                },
+            });
+        }
+        private bool CheckValidityOFPOSTModel(Models.POSTModels.OAuthServerCheckUserAccountPOSTModel OAuthServerCheckUserAccountPOSTModel, out string ErrorMessage)
+        {
+            if (OAuthServerCheckUserAccountPOSTModel.PINCode == null || OAuthServerCheckUserAccountPOSTModel.PayerAccountNumber == null)
+            {
+                ErrorMessage = "Incomplete Data.";
+                return false;
+            }
+            CASPaymentDTO.Domain.Account PayerAccNo = accountHandler.Search(new CASPaymentDTO.Domain.Account { Accountnumber = OAuthServerCheckUserAccountPOSTModel.PayerAccountNumber }).Cast<CASPaymentDTO.Domain.Account>().FirstOrDefault();
+            if (object.Equals(PayerAccNo, default(CASPaymentDTO.Domain.Account)))
+            {
+                ErrorMessage = "Account Number is not valid";
+                return false;
+            }
+            ErrorMessage = "";
+            return true;
+        }
         private bool CheckValidityOFPOSTModel(Models.POSTModels.PaymentPOSTModel paymentModel, out string ErrorMessage)
         {
-            if (paymentModel.PayeeAccountNumber == null || paymentModel.TransactionType == null || paymentModel.Amount == null || paymentModel.RequestNonce == null || paymentModel.RedirectUrl == null)
+            if (paymentModel.PayeeAccountNumber == null || paymentModel.TransactionType == null || paymentModel.Amount == null || paymentModel.RequestNonce == null)
             {
                 ErrorMessage = "Incomplete Payment Data.";
                 return false;
@@ -387,11 +615,12 @@ namespace APIRestPayment.Controllers
                 ErrorMessage = "PayerAccountNumber must be assigned in transfer requests";
                 return false;
             }
-            if (paymentModel.TransactionType == Constants.TransactionTypes.Purchase && string.IsNullOrEmpty(paymentModel.OrderNumber))
+            if (paymentModel.TransactionType == Constants.TransactionTypes.Purchase && (string.IsNullOrEmpty(paymentModel.OrderNumber) || string.IsNullOrEmpty(paymentModel.RedirectUrl)))
             {
-                ErrorMessage = "OrderNumber must be assigned in sale requests";
+                ErrorMessage = string.IsNullOrEmpty(paymentModel.OrderNumber) ? "OrderNumber must be assigned in purchase requests" : "Redirect Url must be assigned in purchase requests";
                 return false;
             }
+
             //TODO check for nonces and datetimes to prevent system exposed with REPLAY ATTACK
 
             CASPaymentDTO.Domain.Account PayeeAccNo = accountHandler.Search(new CASPaymentDTO.Domain.Account { Accountnumber = paymentModel.PayeeAccountNumber }).Cast<CASPaymentDTO.Domain.Account>().FirstOrDefault();
@@ -412,9 +641,11 @@ namespace APIRestPayment.Controllers
             ErrorMessage = "";
             return true;
         }
-
+        // Not an action method.
+        [NonAction]
         public async Task<bool> CheckAccountAndPINCode(CASPaymentDTO.Domain.Account PayerAccount, string insertedPIN)
         {
+
             Microsoft.AspNet.Identity.PasswordVerificationResult res = await Task.Run(() =>
             {
                 CASPaymentDTO.Domain.Users user = PayerAccount.UsersItem;
@@ -427,8 +658,9 @@ namespace APIRestPayment.Controllers
                 }
                 return result;
             }).ConfigureAwait(false);
-            return res == Microsoft.AspNet.Identity.PasswordVerificationResult.Success;
+            return (res == Microsoft.AspNet.Identity.PasswordVerificationResult.Success);
         }
+
         /// <summary>
         /// Compares the balance of the "PayerAccount" with "Amount" and returns a bool indicating whether amount could be taken from this account.
         /// </summary>
@@ -436,6 +668,8 @@ namespace APIRestPayment.Controllers
         /// <param name="Amount">
         /// <typeparamref name="Decimal"/> Amount of payment</param>
         /// <returns>bool</returns>
+        // Not an action method.
+        [NonAction]
         public async Task<bool> CheckBalance(CASPaymentDTO.Domain.Account PayerAccount, Decimal Amount)
         {
             return await Task.Run(() =>
@@ -449,7 +683,8 @@ namespace APIRestPayment.Controllers
                  return result;
              }).ConfigureAwait(false);
         }
-
+        // Not an action method.
+        [NonAction]
         public async Task<bool> CheckUpperLimit(CASPaymentDTO.Domain.Account PayerAccount, Decimal Amount, string TransactionType)
         {
             return await Task.Run(() =>
@@ -480,10 +715,11 @@ namespace APIRestPayment.Controllers
 
         #endregion
 
-
         #region Perform Payment
 
-        public string PerformPayment(CASPaymentDTO.Domain.Transactions payerTransaction)
+        // Not an action method.
+        [NonAction]
+        public void PerformPayment(CASPaymentDTO.Domain.Transactions payerTransaction, out string paymentStatus, out string ErrorPayment, out string trackNumber)
         {
             string trackingNumber = GenerateUniqueTrackingNumber(payerTransaction.DestinationAccountItem.Accountnumber, payerTransaction.SourceAccountItem.Accountnumber);
             CASPaymentDTO.Domain.Transactions payeeTransaction = ReverseTransaction(payerTransaction);
@@ -514,43 +750,71 @@ namespace APIRestPayment.Controllers
             CASPaymentDTO.Domain.AccountDailyActivity accountDailyActivityForPayer = GetPayerTodayActivity(payerAccount, payerTransaction.TransactionTypeItem.NameEn, (Decimal)payerTransaction.Amount, out hasDailyActivity);
 
 
-
             CASPaymentDTO.Domain.PaymentStatus completePaymentStatus = paymentStatusHandler.Search(new CASPaymentDTO.Domain.PaymentStatus { NameEn = PaymentStatusTypes.Completed }).Cast<CASPaymentDTO.Domain.PaymentStatus>().FirstOrDefault();
             //bool Completed = false;
+            bool isTransactionComplete = false;
+            string TransactionError = "";
             using (var session = WebApiApplication.SessionFactory.OpenSession())
-            using (var tx = session.BeginTransaction())
             {
-                try
+                using (var tx = session.BeginTransaction())
                 {
-                    accountHandler.Update(payerAccount);
-                    accountHandler.Update(payerAccount);
-                    payerTransaction.PaymentStatusItem = completePaymentStatus;
-                    payeeTransaction.PaymentStatusItem = completePaymentStatus;
-                    transactionHandler.Save(payerTransaction);
-                    transactionHandler.Save(payeeTransaction);
+                    try
+                    {
+                        accountHandler.Update(payerAccount);
+                        accountHandler.Update(payerAccount);
+                        payerTransaction.PaymentStatusItem = completePaymentStatus;
+                        payeeTransaction.PaymentStatusItem = completePaymentStatus;
+                        transactionHandler.Save(payerTransaction);
+                        transactionHandler.Save(payeeTransaction);
 
-                    if (hasDailyActivity) accountDailyActivityHandler.Update(accountDailyActivityForPayer);
-                    else accountDailyActivityHandler.Save(accountDailyActivityForPayer);
-                    // execute code that uses the session 
-                    tx.Commit();
-                }
-                catch (NHibernate.StaleStateException ex)
-                {
-                    tx.Rollback();
+                        if (hasDailyActivity) accountDailyActivityHandler.Update(accountDailyActivityForPayer);
+                        else accountDailyActivityHandler.Save(accountDailyActivityForPayer);
+                        // execute code that uses the session 
+                        tx.Commit();
+                    }
+                    catch (NHibernate.StaleStateException ex)
+                    {
+                        tx.Rollback();
 
-                }
-                if (tx.WasCommitted)
-                {
-                    //TODO create the new transaction model and pass it to client web site
-                    //TODO send the above model to Payer Email
-                    return "Success";
-                }
-                else
-                {
-                    //TODO redirect user with Error parameters set
+                    }
+                    if (tx.WasCommitted)
+                    {
+                        //TODO create the new transaction model and pass it to client web site
+                        //TODO send the above model to Payer Email
+                        // return ChangeModelFactorySession(currentThreadContextSession.SessionFactory, Request).Create(PaymentStatusTypes.Completed, null, trackingNumber);
+                        isTransactionComplete = true;
+                        // return TheModelFactory.Create(PaymentStatusTypes.Completed, null, trackingNumber);
+                    }
+                    else
+                    {
+                        //TODO redirect user with Error parameters set
+                        isTransactionComplete = false;
+                        TransactionError = "Transaction failed";
+                        //return TheModelFactory.Create(PaymentStatusTypes.Canceled, "Transaction failed", null);
+                    }
                 }
             }
-            return "Success";
+            var pppp = HttpContext.Current;
+            if (mainContext != null)
+            {
+                HttpContext.Current = mainContext;
+                var sessionNew = WebApiApplication.SessionFactory.OpenSession();
+                NHibernate.Context.CurrentSessionContext.Bind(sessionNew);
+            }
+            if (isTransactionComplete)
+            {
+                paymentStatus = PaymentStatusTypes.Completed;
+                ErrorPayment = null;
+                trackNumber = trackingNumber;
+                //return TheModelFactory.Create(PaymentStatusTypes.Completed, null, trackingNumber);
+            }
+            else
+            {
+                paymentStatus = PaymentStatusTypes.Canceled;
+                ErrorPayment = TransactionError;
+                trackNumber = null;
+                // return TheModelFactory.Create(PaymentStatusTypes.Canceled, TransactionError, null);
+            }
         }
 
         private CASPaymentDTO.Domain.AccountDailyActivity GetPayerTodayActivity(CASPaymentDTO.Domain.Account payerAccount, string TransactionType, Decimal AmountToPay, out bool hasDailyActivity)
@@ -576,6 +840,25 @@ namespace APIRestPayment.Controllers
             }
         }
 
+        private async Task<CASPaymentDTO.Domain.Transactions> CreatePayerTransaction(Models.POSTModels.PaymentPOSTModel paymodel, CASPaymentDTO.Domain.Account PayerAccount)
+        {
+            return await Task.Run(() =>
+            {
+                CASPaymentDTO.Domain.Transactions payerTransaction = new CASPaymentDTO.Domain.Transactions();
+                CASPaymentDTO.Domain.Account PayeeAccount = accountHandler.Search(new CASPaymentDTO.Domain.Account { Accountnumber = paymodel.PayeeAccountNumber }).Cast<CASPaymentDTO.Domain.Account>().FirstOrDefault();
+                CASPaymentDTO.Domain.CurrencyType currencyItem = currencyHandler.Search(new CASPaymentDTO.Domain.CurrencyType { Charcode = paymodel.Currency }).Cast<CASPaymentDTO.Domain.CurrencyType>().FirstOrDefault();
+                CASPaymentDTO.Domain.TransactionType transactionTypeItem = transactionTypeHandler.Search(new CASPaymentDTO.Domain.TransactionType { NameEn = paymodel.TransactionType }).Cast<CASPaymentDTO.Domain.TransactionType>().FirstOrDefault();
+                payerTransaction.Amount = (-1) * Math.Abs((Decimal)paymodel.Amount);
+                payerTransaction.CurrencyTypeItem = currencyItem;
+                payerTransaction.TransactionTypeItem = transactionTypeItem;
+                payerTransaction.DestinationAccountItem = PayerAccount;
+                payerTransaction.SourceAccountItem = PayeeAccount;
+                payerTransaction.Description = paymodel.Description;
+                return payerTransaction;
+            }).ConfigureAwait(false);
+        }
+
+
         private CASPaymentDTO.Domain.Transactions ReverseTransaction(CASPaymentDTO.Domain.Transactions mainTransaction)
         {
             CASPaymentDTO.Domain.Transactions reverseTransaction = new CASPaymentDTO.Domain.Transactions();
@@ -588,7 +871,7 @@ namespace APIRestPayment.Controllers
             return reverseTransaction;
         }
 
-        public string GenerateUniqueTrackingNumber(string PayeeAccountNumber, string PayerAccountNumber)
+        private string GenerateUniqueTrackingNumber(string PayeeAccountNumber, string PayerAccountNumber)
         {
             string trackingNumber = "";
             bool isTrackingNumberUnique = false;

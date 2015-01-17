@@ -15,13 +15,15 @@ using System.Web.Http;
 using Newtonsoft.Json;
 using System.Web.Routing;
 using System.Web.Optimization;
+using WebApiThrottle;
+using System.Collections.Generic;
 
 [assembly: OwinStartup(typeof(APIRestPayment.Startup))]
 namespace APIRestPayment
 {
     public class Startup
     {
-        public static int yyy = 13;
+        public static int yyy = 2;
         private CASPaymentDAO.DataHandler.ApplicationDataHandler applicationHandler;
         private CASPaymentDAO.DataHandler.AccessTokenDataHandler accessTokenHandler;
         private CASPaymentDAO.DataHandler.AuthorizationCodeDataHandler authorizationCodeHandler;
@@ -33,7 +35,7 @@ namespace APIRestPayment
 
             //force Https
             //FilterConfig.RegisterHttpFilters(config.Filters);
-
+            
             //////// to generate json response
             
             config.Formatters.Clear();
@@ -45,22 +47,44 @@ namespace APIRestPayment
             //omit null values globally in response
             config.Formatters.JsonFormatter.SerializerSettings.NullValueHandling = NullValueHandling.Ignore;
 
+            //Limit Requests by their IP and Client-Key 
+            config.MessageHandlers.Add(new ThrottlingHandler()
+            {
+                Policy = new ThrottlePolicy(perMinute: 40 ,perHour:2000)
+                {
+                    IpThrottling = true,
+                    ClientThrottling = true,
+                    EndpointThrottling = true,
+                    //TODO
+                    IpWhitelist = new List<string> { "::1","127.0.0.1" , Constants.Paths.OAuthServerPath},
+                },
+                Repository = new CacheRepository()
+            });
+
+            ////Enable Cross Origin Request
+            //config.EnableCors();
+            
+
             ///default settings
             AreaRegistration.RegisterAllAreas();
 
-            //WebApiConfig.Register(config); 
-            GlobalConfiguration.Configure(WebApiConfig.Register);
+            WebApiConfig.Register(config); 
+            //GlobalConfiguration.Configure(WebApiConfig.Register);
             FilterConfig.RegisterGlobalFilters(GlobalFilters.Filters);
             RouteConfig.RegisterRoutes(RouteTable.Routes);
             BundleConfig.RegisterBundles(BundleTable.Bundles);
-                        
-
 
             ConfigureOAuth(app);
-
-            WebApiConfig.Register(config);
             app.UseCors(Microsoft.Owin.Cors.CorsOptions.AllowAll);
             app.UseWebApi(config);
+            app.UseCookieAuthentication(new CookieAuthenticationOptions
+            {
+                AuthenticationType = "Application",
+                AuthenticationMode = AuthenticationMode.Passive,
+                LoginPath = new PathString("/Member/Login"),
+                LogoutPath = new PathString("/Member/Logout"),
+            });
+            
             yyy++;
 
         }

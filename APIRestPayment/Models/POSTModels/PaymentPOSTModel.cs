@@ -5,7 +5,6 @@ using System.Web;
 
 namespace APIRestPayment.Models.POSTModels
 {
-    [Serializable]
     public class PaymentPOSTModel
     {
         public string TransactionType { set; get; }
@@ -17,6 +16,10 @@ namespace APIRestPayment.Models.POSTModels
         public string RequestNonce { set; get; }
         public DateTime? RequestDate  { set; get; }
         public string OrderNumber { get; set; }
+
+        public string PaymentPIN { get; set; }
+        public string HashPaymentCode { set; get; }
+        public string Description { set; get; }
         //public SalesModel SaleDetails { set; get; }
         //public TransferModel TransferDetails { set; get; }
 

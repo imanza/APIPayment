@@ -13,5 +13,6 @@ namespace APIRestPayment.Constants
         public const string JaldaContractId = "jaldaContractId";
         public const string NameID = ClaimTypes.NameIdentifier;
         public const string Name = ClaimTypes.Name;
+        public const string Role = ClaimTypes.Role;
     }
 }

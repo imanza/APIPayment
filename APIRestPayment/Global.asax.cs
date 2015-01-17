@@ -35,6 +35,7 @@ namespace APIRestPayment
             SessionFactory = nhConfig.BuildSessionFactory(); 
             
             
+
             ////force Https
             ////FilterConfig.RegisterHttpFilters(GlobalConfiguration.Configuration.Filters);
             

@@ -5,9 +5,10 @@ using System.Web;
 
 namespace APIRestPayment.Constants
 {
-    public class Paths
+    public static class Paths
     {
-        public static string LoginPath { get{ return "http://localhost:1135/login";} }
+        public const string LoginPath="http://localhost:1135/login";
+        public const string OAuthServerPath ="http://localhost:1523/";
 
     }
 }

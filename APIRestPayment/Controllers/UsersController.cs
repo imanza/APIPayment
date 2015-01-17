@@ -12,7 +12,7 @@ using System.Web;
 
 namespace APIRestPayment.Controllers
 {
-   // [Filters.GeneralAuthorization]
+    // [Filters.GeneralAuthorization]
     [Authorize]
     public class UsersController : BaseApiController
     {
@@ -24,7 +24,7 @@ namespace APIRestPayment.Controllers
         {
             get
             {
-                if( base.CurrentUserAccessType == DataAccessTypes.Administrator) return DataAccessTypes.Administrator;
+                if (base.CurrentUserAccessType == DataAccessTypes.Administrator) return DataAccessTypes.Administrator;
                 else
                 {
                     var routeData = Request.GetRouteData();
@@ -54,103 +54,148 @@ namespace APIRestPayment.Controllers
 
         public HttpResponseMessage GetUser(long id)
         {
-            
-            try
+            var identity = User.Identity as ClaimsIdentity;
+            var scopesGranted = identity.Claims.Where(c => c.Type == ClaimNames.OAuthScope).Select(c => c.Value);
+            if (scopesGranted.Contains(ScopeTypes.Profile) || scopesGranted.Contains(ScopeTypes.AllAccess))
             {
-                CASPaymentDTO.Domain.Users searchedUser = this.userHandler.GetEntity(id);
-                return Request.CreateResponse(HttpStatusCode.OK,new Models.QueryResponseModel{
-                   meta = new Models.MetaModel{
-                       code = (int)HttpStatusCode.OK
-                   },
-                   data = TheModelFactory.Create(searchedUser , CurrentUserAccessType),
-                });
-            }
-            catch (NHibernate.ObjectNotFoundException)
-            {
-                return Request.CreateResponse(HttpStatusCode.NotFound, new Models.QueryResponseModel
+                try
                 {
-                    meta = new Models.MetaModel
+                    CASPaymentDTO.Domain.Users searchedUser = this.userHandler.GetEntity(id);
+                    if (searchedUser != null)
                     {
-                        code = (int)HttpStatusCode.NotFound,
-                        errorMessage = "Item was not found"
-                    }
-                });
-            }
-
-
-        }
-        public HttpResponseMessage Get(int page = 0, int pageSize = 2)
-        {
-            IList<CASPaymentDTO.Domain.Users> result =new List<CASPaymentDTO.Domain.Users>();
-            if (base.CurrentUserAccessType != DataAccessTypes.Administrator)
-            {
-                var authentication = System.Web.HttpContextExtensions.GetOwinContext(HttpContext.Current).Authentication;
-                var ticket = authentication.AuthenticateAsync("Application").Result;
-                var identity = User.Identity as ClaimsIdentity;
-                if (identity == null)
-                {
-                    return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
-                    {
-                        meta = new Models.MetaModel
-                        {
-                            code = (int)HttpStatusCode.BadRequest,
-                            errorMessage = "The Identity of the user is not known"
-                        }
-                    });
-                }
-                //if (Int64.TryParse(Thread.CurrentPrincipal.Identity.Name, out currentUserId)) result = userHandler.GetEntity(currentUserId).AccountS;
-                else
-                {
-                    string currentUserIdstring = identity.Claims.Where(c => c.Type == ClaimTypes.NameIdentifier).Select(c => c.Value).FirstOrDefault();
-                    long currentUserId;
-                    if (long.TryParse(currentUserIdstring, out currentUserId))result.Add(userHandler.GetEntity(currentUserId));
-                    else
-                    {
-                        return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
+                        return Request.CreateResponse(HttpStatusCode.OK, new Models.QueryResponseModel
                         {
                             meta = new Models.MetaModel
                             {
-                                code = (int)HttpStatusCode.BadRequest,
-                                errorMessage = "Bad Identity set for user"
+                                code = (int)HttpStatusCode.OK
+                            },
+                            data = TheModelFactory.Create(searchedUser, CurrentUserAccessType),
+                        });
+                    }
+                    else
+                    {
+                        return Request.CreateResponse(HttpStatusCode.NotFound, new Models.QueryResponseModel
+                        {
+                            meta = new Models.MetaModel
+                            {
+                                code = (int)HttpStatusCode.NotFound,
+                                errorMessage = "User was not found"
                             }
                         });
                     }
                 }
+                catch (NHibernate.ObjectNotFoundException)
+                {
+                    return Request.CreateResponse(HttpStatusCode.NotFound, new Models.QueryResponseModel
+                    {
+                        meta = new Models.MetaModel
+                        {
+                            code = (int)HttpStatusCode.NotFound,
+                            errorMessage = "Item was not found"
+                        }
+                    });
+                }
             }
             else
             {
-                result = this.userHandler.SelectAll().Cast<CASPaymentDTO.Domain.Users>().ToList();
+                //Application does not have permission to view users
+                return Request.CreateResponse(HttpStatusCode.Unauthorized, new Models.QueryResponseModel
+                {
+                    meta = new Models.MetaModel
+                    {
+                        code = (int)HttpStatusCode.Unauthorized,
+                        errorMessage = "Not enough permisions granted to view users!"
+                    },
+                });
             }
-            //////////////////////////////////////////////////
-            var totalCount = result.Count();
-            var totalPages = (int)Math.Ceiling((double)totalCount / pageSize);
-            var urlHelper = new UrlHelper(Request);
-            var prevLink = page > 0 ? urlHelper.Link("Users", new { page = page - 1 }) : null;
-            var nextLink = page < totalPages - 1 ? urlHelper.Link("Users", new { page = page + 1 }) : null;
-            ///////////////////////////////////////////////////
-            var resultInModel = result
-            .Skip(pageSize * page)
-            .Take(pageSize)
-            .ToList()
-            .Select(s => TheModelFactory.Create(s , (base.CurrentUserAccessType==DataAccessTypes.Administrator) ? DataAccessTypes.Administrator : DataAccessTypes.Owner));
-            ////////////////////////////////////////////////////
-            return Request.CreateResponse(HttpStatusCode.OK, new Models.QueryResponseModel
-            {
-                meta = new Models.MetaModel
-                {
-                    code = (int)HttpStatusCode.OK,
-                },
-                data = resultInModel.ToList(),
-                pagination = new Models.PaginationModel
-                {
-                    TotalCount = totalCount,
-                    TotalPages = totalPages,
-                    PrevPageLink = prevLink,
-                    NextPageLink = nextLink,
-                }
 
-            });
-            
+        }
+        public HttpResponseMessage Get(int page = 0, int pageSize = 2)
+        {
+            IList<CASPaymentDTO.Domain.Users> result = new List<CASPaymentDTO.Domain.Users>();
+            var identity = User.Identity as ClaimsIdentity;
+            if (identity == null)
+            {
+                return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
+                {
+                    meta = new Models.MetaModel
+                    {
+                        code = (int)HttpStatusCode.BadRequest,
+                        errorMessage = "The Identity of the user is not known"
+                    }
+                });
+            }
+            else
+            {
+                //check profile scope
+                var scopesGranted = identity.Claims.Where(c => c.Type == ClaimNames.OAuthScope).Select(c => c.Value);
+                if (scopesGranted.Contains(ScopeTypes.Profile) || scopesGranted.Contains(ScopeTypes.AllAccess))
+                {
+                    if (base.CurrentUserAccessType != DataAccessTypes.Administrator)
+                    {
+                        string currentUserIdstring = identity.Claims.Where(c => c.Type == ClaimNames.NameID).Select(c => c.Value).FirstOrDefault();
+                        long currentUserId;
+                        if (long.TryParse(currentUserIdstring, out currentUserId)) result.Add(userHandler.GetEntity(currentUserId));
+                        else
+                        {
+                            return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
+                            {
+                                meta = new Models.MetaModel
+                                {
+                                    code = (int)HttpStatusCode.BadRequest,
+                                    errorMessage = "Bad Identity set for user"
+                                }
+                            });
+                        }
+
+                    }
+                    else
+                    {
+                        result = this.userHandler.SelectAll().Cast<CASPaymentDTO.Domain.Users>().ToList();
+                    }
+                    //////////////////////////////////////////////////
+                    var totalCount = result.Count();
+                    var totalPages = (int)Math.Ceiling((double)totalCount / pageSize);
+                    var urlHelper = new UrlHelper(Request);
+                    var prevLink = page > 0 ? urlHelper.Link("Users", new { page = page - 1 }) : null;
+                    var nextLink = page < totalPages - 1 ? urlHelper.Link("Users", new { page = page + 1 }) : null;
+                    ///////////////////////////////////////////////////
+                    var resultInModel = result
+                    .Skip(pageSize * page)
+                    .Take(pageSize)
+                    .ToList()
+                    .Select(s => TheModelFactory.Create(s, (base.CurrentUserAccessType == DataAccessTypes.Administrator) ? DataAccessTypes.Administrator : DataAccessTypes.Owner));
+                    ////////////////////////////////////////////////////
+                    return Request.CreateResponse(HttpStatusCode.OK, new Models.QueryResponseModel
+                    {
+                        meta = new Models.MetaModel
+                        {
+                            code = (int)HttpStatusCode.OK,
+                        },
+                        data = resultInModel.ToList(),
+                        pagination = new Models.PaginationModel
+                        {
+                            TotalCount = totalCount,
+                            TotalPages = totalPages,
+                            PrevPageLink = prevLink,
+                            NextPageLink = nextLink,
+                        }
+
+                    });
+                }
+                else
+                {
+                    //Application does not have permission to view users
+                    return Request.CreateResponse(HttpStatusCode.Unauthorized, new Models.QueryResponseModel
+                    {
+                        meta = new Models.MetaModel
+                        {
+                            code = (int)HttpStatusCode.Unauthorized,
+                            errorMessage = "Not enough permisions granted to view users!"
+                        },
+                    });
+                }
+            }
         }
 
         #endregion

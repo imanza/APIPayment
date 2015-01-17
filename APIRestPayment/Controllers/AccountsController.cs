@@ -41,16 +41,20 @@ namespace APIRestPayment.Controllers
                     var identity = User.Identity as ClaimsIdentity;
                     if (identity != null)
                     {
-                        var currentuserIdstring = identity.Claims.Where(c => c.Type == ClaimNames.NameID).Select(c => c.Value).FirstOrDefault();
-                        long currentUserId;
-                        if (Int64.TryParse(currentuserIdstring, out currentUserId))
+                        var scopesGranted = identity.Claims.Where(c => c.Type == ClaimNames.OAuthScope).Select(c => c.Value);
+                        if (scopesGranted.Contains(ScopeTypes.Profile) || scopesGranted.Contains(ScopeTypes.AllAccess))
                         {
-                            CASPaymentDTO.Domain.Users currentUser = userHandler.GetEntity(currentUserId);
-                            foreach (CASPaymentDTO.Domain.Account ac in currentUser.AccountS)
+                            var currentuserIdstring = identity.Claims.Where(c => c.Type == ClaimNames.NameID).Select(c => c.Value).FirstOrDefault();
+                            long currentUserId;
+                            if (Int64.TryParse(currentuserIdstring, out currentUserId))
                             {
-                                if (ac.Id.ToString() == resourceID)
+                                CASPaymentDTO.Domain.Users currentUser = userHandler.GetEntity(currentUserId);
+                                foreach (CASPaymentDTO.Domain.Account ac in currentUser.AccountS)
                                 {
-                                    return DataAccessTypes.Owner;
+                                    if (ac.Id.ToString() == resourceID)
+                                    {
+                                        return DataAccessTypes.Owner;
+                                    }
                                 }
                             }
                         }
@@ -67,27 +71,69 @@ namespace APIRestPayment.Controllers
 
         public HttpResponseMessage GetAccount(long id)
         {
-            try
+            var identity = User.Identity as ClaimsIdentity;
+            if (identity == null)
             {
-                CASPaymentDTO.Domain.Account searchedAccount = this.accountHandler.GetEntity(id);
-                return Request.CreateResponse(HttpStatusCode.OK, new Models.QueryResponseModel
+                return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel
                 {
                     meta = new Models.MetaModel
                     {
-                        code = (int)HttpStatusCode.OK
-                    },
-                    data = TheModelFactory.Create(searchedAccount, CurrentUserAccessType),
+                        code = (int)HttpStatusCode.BadRequest,
+                        errorMessage = "The Identity of the user is not known"
+                    }
                 });
             }
-            catch (NHibernate.ObjectNotFoundException)
+            var scopesGranted = identity.Claims.Where(c => c.Type == ClaimNames.OAuthScope).Select(c => c.Value);
+            if (scopesGranted.Contains(ScopeTypes.ManageAccounts) || scopesGranted.Contains(ScopeTypes.AllAccess))
             {
-                return Request.CreateResponse(HttpStatusCode.NotFound, new Models.QueryResponseModel
+                try
+                {
+                    CASPaymentDTO.Domain.Account searchedAccount = this.accountHandler.GetEntity(id);
+                    if (searchedAccount != null)
+                    {
+                        return Request.CreateResponse(HttpStatusCode.OK, new Models.QueryResponseModel
+                        {
+                            meta = new Models.MetaModel
+                            {
+                                code = (int)HttpStatusCode.OK
+                            },
+                            data = TheModelFactory.Create(searchedAccount, CurrentUserAccessType),
+                        });
+                    }
+                    else
+                    {
+                        return Request.CreateResponse(HttpStatusCode.NotFound, new Models.QueryResponseModel
+                        {
+                            meta = new Models.MetaModel
+                            {
+                                code = (int)HttpStatusCode.NotFound,
+                                errorMessage = "Account was not found"
+                            }
+                        });
+                    }
+                }
+                catch (NHibernate.ObjectNotFoundException)
+                {
+                    return Request.CreateResponse(HttpStatusCode.NotFound, new Models.QueryResponseModel
+                    {
+                        meta = new Models.MetaModel
+                        {
+                            code = (int)HttpStatusCode.NotFound,
+                            errorMessage = "Item was not found"
+                        }
+                    });
+                }
+            }
+            else
+            {
+                //User does not have permission to view accounts
+                return Request.CreateResponse(HttpStatusCode.Unauthorized, new Models.QueryResponseModel
                 {
                     meta = new Models.MetaModel
                     {
-                        code = (int)HttpStatusCode.NotFound,
-                        errorMessage = "Item was not found"
-                    }
+                        code = (int)HttpStatusCode.Unauthorized,
+                        errorMessage = "Not enough permisions granted to view accounts!"
+                    },
                 });
             }
         }
@@ -117,7 +163,7 @@ namespace APIRestPayment.Controllers
                     {
                         string currentUserId = identity.Claims.Where(c => c.Type == ClaimNames.NameID).Select(c => c.Value).FirstOrDefault();
                         long currentuserIdLong;
-                        if (long.TryParse(currentUserId, out currentuserIdLong)) result = userHandler.GetEntity(currentuserIdLong).AccountS;
+                        if (long.TryParse(currentUserId, out currentuserIdLong)) result = userHandler.GetEntity(currentuserIdLong).AccountS.Where(x => x.State ==0).ToList();
                         else
                         {
                             return Request.CreateResponse(HttpStatusCode.BadRequest, new Models.QueryResponseModel

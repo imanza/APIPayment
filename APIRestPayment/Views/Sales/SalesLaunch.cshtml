@@ -40,6 +40,7 @@
     <section id="PurchaseForm">
         @using (Html.BeginForm("SalesLaunch", "Sales", new { returnUrl = ViewBag.ReturnUrl , PaymentPOSTModelJSON = Newtonsoft.Json.JsonConvert.SerializeObject( ViewBag.PaymentPOSTModel , new Newtonsoft.Json.JsonSerializerSettings{NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore} )}, FormMethod.Post, new { @class = "form-horizontal", role = "form" }))
         {
+            @Html.AntiForgeryToken()
             <div class="form-group">
                 Payee Name :
                 @payeeName
