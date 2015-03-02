@@ -51,7 +51,7 @@ namespace APIRestPayment.Models
 
             return new TransactionModel()
             {
-                Url = _UrlHelper.Link("Payments", new { id = transaction.Id }),
+                Url = _UrlHelper.Link("GetPayment", new { id = transaction.Id }),
                 Trackingnumber = transaction.Trackingnumber,
                 ExecutionDate = DateFuncs.ToShamsiCal(transaction.Executiondatetime),
                 SourceAccount = source,
@@ -68,7 +68,7 @@ namespace APIRestPayment.Models
         {
             if (account == null) throw new NullReferenceException();
             AccountModel result = new AccountModel();
-            result.Url = _UrlHelper.Link("Accounts", new { id = account.Id });
+            result.Url = _UrlHelper.Link("GetAccount", new { id = account.Id });
             result.Accountnumber = account.Accountnumber;
             if (level_of_detail != DataAccessTypes.Anonymous)
             {
@@ -98,12 +98,13 @@ namespace APIRestPayment.Models
             return result;
         }
 
-        public PaymentResultModel Create(string resultOfPayment, string errorMessage, string TrackingNumber)
+        public PaymentResultModel Create(string resultOfPayment, string errorMessage, string TrackingNumber ,string OrderNumber )
         {
             PaymentResultModel result = new PaymentResultModel
             {
                 Error = errorMessage,
-
+                OrderNumber = OrderNumber,
+                TimeSpan = Constants.DateFuncs.Get_String_Date(Constants.DateFuncs.ToShamsiCal(DateTime.Now)),
                 TrackingNumber = TrackingNumber,
                 ResultOfPayment = resultOfPayment
             };
@@ -114,7 +115,7 @@ namespace APIRestPayment.Models
         {
             UserModel result = new UserModel();
             result.UserType = user.UserType;
-            result.Url = _UrlHelper.Link("Users", new { id = user.Id });
+            result.Url = _UrlHelper.Link("GetUser", new { id = user.Id });
             if (level_of_detail != DataAccessTypes.Anonymous)
             {
                 if (user.UserType == "LP") result.CompanyDetails = this.Create(user.LegalPersonItem);
@@ -215,7 +216,7 @@ namespace APIRestPayment.Models
         {
             if (account == null) throw new NullReferenceException("account");
             AccountModel result = new AccountModel();
-            result.Url = _UrlHelper.Link("Accounts", new { id = account.Id });
+            result.Url = _UrlHelper.Link("GetAccount", new { id = account.Id });
             result.Accountnumber = account.Accountnumber;
             return result;
         }
@@ -228,7 +229,7 @@ namespace APIRestPayment.Models
             //if (user.UserType == "LP") result.CompanyDetails = this.Create(user.LegalPersonItem);
             //else result.PersonDetails = this.Create(user.RealPersonItem, DataAccessTypes.Anonymous);
             //
-            result.Url = _UrlHelper.Link("Users", new { id = user.Id });
+            result.Url = _UrlHelper.Link("GetUser", new { id = user.Id });
             return result;
         }
         #endregion
@@ -267,12 +268,11 @@ namespace APIRestPayment.Models
 
         public CASPaymentDTO.Domain.Transactions Parse(PaymentPOSTModel paymentPOSTModel, out string ErrorMessage)
         {
-            if (paymentPOSTModel.PayeeAccountNumber == null || paymentPOSTModel.TransactionType == null || paymentPOSTModel.Amount == null || paymentPOSTModel.RequestNonce == null || paymentPOSTModel.RedirectUrl == null)
+            if (paymentPOSTModel.PayeeAccountNumber == null || paymentPOSTModel.TransactionType == null || paymentPOSTModel.Amount == null  || paymentPOSTModel.RedirectUrl == null)
             {
                 ErrorMessage = "Incomplete Payment Data.";
                 return null;
             }
-            //TODO check for nonces and datetimes to prevent system exposed with REPLAY ATTACK
             CASPaymentDTO.Domain.Transactions payment = new CASPaymentDTO.Domain.Transactions();
             try
             {

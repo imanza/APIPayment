@@ -15,6 +15,7 @@ namespace APIRestPayment.Controllers
 {
     //[Filters.GeneralAuthorization]
     [Authorize]
+    [RoutePrefix("api/accounts")]
     public class AccountsController : BaseApiController
     {
         #region Handlers
@@ -68,7 +69,7 @@ namespace APIRestPayment.Controllers
         #endregion
 
         #region Get
-
+        [Route("{id:long}", Name = "GetAccount")]
         public HttpResponseMessage GetAccount(long id)
         {
             var identity = User.Identity as ClaimsIdentity;
@@ -137,6 +138,9 @@ namespace APIRestPayment.Controllers
                 });
             }
         }
+
+
+        [Route( Name = "GetAllAccounts")]
         public HttpResponseMessage Get(int page = 0, int pageSize = 10)
         {
 
@@ -198,8 +202,8 @@ namespace APIRestPayment.Controllers
             var totalCount = result.Count();
             var totalPages = (int)Math.Ceiling((double)totalCount / pageSize);
             var urlHelper = new UrlHelper(Request);
-            var prevLink = page > 0 ? urlHelper.Link("Accounts", new { page = page - 1 }) : null;
-            var nextLink = page < totalPages - 1 ? urlHelper.Link("Accounts", new { page = page + 1 }) : null;
+            var prevLink = page > 0 ? urlHelper.Link("GetAllAccounts", new { page = page - 1 }) : null;
+            var nextLink = page < totalPages - 1 ? urlHelper.Link("GetAllAccounts", new { page = page + 1 }) : null;
             ///////////////////////////////////////////////////
             var resultInModel = result
             .Skip(pageSize * page)
@@ -227,7 +231,8 @@ namespace APIRestPayment.Controllers
         #endregion
 
         #region POST
-
+        [Route(Name="CreateAccount")]
+        [HttpPost]
         /// <summary>
         /// This method tries to save a new account based on the sites regulations. 
         /// </summary>
@@ -367,7 +372,9 @@ namespace APIRestPayment.Controllers
                 },
             });
         }
+#endregion
 
+        #region check and generation of account related numbers
         private bool CheckValidityofPost (CASPaymentDTO.Domain.Account account)
         {
             

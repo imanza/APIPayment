@@ -9,7 +9,6 @@ namespace APIRestPayment.Models.POSTModels
     {
         public string PayerAccountNumber { set; get; }
         public string PINCode { set; get; }
-        public string Nonce { set; get; }
         public string DateTimeofRequest { set; get; }
     }
 }

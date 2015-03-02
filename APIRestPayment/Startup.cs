@@ -33,45 +33,14 @@ namespace APIRestPayment
         {
             HttpConfiguration config = new HttpConfiguration();
 
-            //force Https
-            //FilterConfig.RegisterHttpFilters(config.Filters);
             
-            //////// to generate json response
-            
-            config.Formatters.Clear();
-            config.Formatters.Add(new System.Net.Http.Formatting.JsonMediaTypeFormatter());
-
-            ////solve self referencing problem
-            config.Formatters.JsonFormatter.SerializerSettings.Re‌ferenceLoopHandling = ReferenceLoopHandling.Ignore;
-
-            //omit null values globally in response
-            config.Formatters.JsonFormatter.SerializerSettings.NullValueHandling = NullValueHandling.Ignore;
-
-            //Limit Requests by their IP and Client-Key 
-            config.MessageHandlers.Add(new ThrottlingHandler()
-            {
-                Policy = new ThrottlePolicy(perMinute: 40 ,perHour:2000)
-                {
-                    IpThrottling = true,
-                    ClientThrottling = true,
-                    EndpointThrottling = true,
-                    //TODO
-                    IpWhitelist = new List<string> { "::1","127.0.0.1" , Constants.Paths.OAuthServerPath},
-                },
-                Repository = new CacheRepository()
-            });
-
-            ////Enable Cross Origin Request
-            //config.EnableCors();
-            
-
             ///default settings
             AreaRegistration.RegisterAllAreas();
 
-            WebApiConfig.Register(config); 
-            //GlobalConfiguration.Configure(WebApiConfig.Register);
+            //WebApiConfig.Register(config); 
+            GlobalConfiguration.Configure(WebApiConfig.Register);
             FilterConfig.RegisterGlobalFilters(GlobalFilters.Filters);
-            RouteConfig.RegisterRoutes(RouteTable.Routes);
+            //RouteConfig.RegisterRoutes(RouteTable.Routes);
             BundleConfig.RegisterBundles(BundleTable.Bundles);
 
             ConfigureOAuth(app);

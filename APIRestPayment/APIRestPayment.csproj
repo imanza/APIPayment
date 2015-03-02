@@ -228,6 +228,7 @@
     <Reference Include="System.Net.Http.Primitives">
       <HintPath>..\packages\Microsoft.Net.Http.2.2.28\lib\net45\System.Net.Http.Primitives.dll</HintPath>
     </Reference>
+    <Reference Include="System.Runtime.Caching" />
     <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.Spatial, Version=5.6.2.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
@@ -328,8 +329,10 @@
   <ItemGroup>
     <Compile Include="App_Start\BundleConfig.cs" />
     <Compile Include="App_Start\FilterConfig.cs" />
+    <Compile Include="App_Start\MessageHandlers\AjaxRequestMessageHandler.cs" />
     <Compile Include="App_Start\MessageHandlers\CryptoMessageHandler.cs" />
     <Compile Include="App_Start\MessageHandlers\Crypto\StringCipher.cs" />
+    <Compile Include="App_Start\MessageHandlers\MACMessageHandler.cs" />
     <Compile Include="App_Start\RouteConfig.cs" />
     <Compile Include="App_Start\WebApiConfig.cs" />
     <Compile Include="Areas\HelpPage\ApiDescriptionExtensions.cs" />
@@ -361,6 +364,7 @@
     <Compile Include="Areas\HelpPage\SampleGeneration\TextSample.cs" />
     <Compile Include="Areas\HelpPage\XmlDocumentationProvider.cs" />
     <Compile Include="Constants\ClaimNames.cs" />
+    <Compile Include="Constants\HMACSettings.cs" />
     <Compile Include="Constants\PaymentSystemConstants.cs" />
     <Compile Include="Constants\ScopeTypes.cs" />
     <Compile Include="Constants\TransactionTypes.cs" />
@@ -398,6 +402,7 @@
     <Compile Include="Models\ModelFactory.cs" />
     <Compile Include="Models\PaginationModel.cs" />
     <Compile Include="Models\POSTModels\OAuthServerCheckUserAccountPOSTModel.cs" />
+    <Compile Include="Models\SalesModels\EncryptedJSONModel.cs" />
     <Compile Include="Models\TransactionModel.cs" />
     <Compile Include="Models\PaymentResultModel.cs" />
     <Compile Include="Models\POSTModels\AccountPOSTModel.cs" />
@@ -407,7 +412,6 @@
     <Compile Include="Models\POSTModels\TransferPaymentResultModel.cs" />
     <Compile Include="Models\QueryResponseModel.cs" />
     <Compile Include="Models\RealPersonModel.cs" />
-    <Compile Include="Models\TransferModel.cs" />
     <Compile Include="Models\UserModel.cs" />
     <Compile Include="Models\WebPageModels\SalesPageModel.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -535,6 +539,7 @@
   </ItemGroup>
   <ItemGroup>
     <Folder Include="App_Data\" />
+    <Folder Include="App_Start\MessageHandlers\MAC\" />
     <Folder Include="Views\Home\PaymentPages\" />
   </ItemGroup>
   <ItemGroup>

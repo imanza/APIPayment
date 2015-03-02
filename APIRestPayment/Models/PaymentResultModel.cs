@@ -11,5 +11,8 @@ namespace APIRestPayment.Models
         public string ResultOfPayment { set; get; }
         public string Error { set; get; }
         public string TrackingNumber { set; get; }
+        public string TimeSpan { set; get; }
+        public string OrderNumber { set; get; }
+
     }
 }

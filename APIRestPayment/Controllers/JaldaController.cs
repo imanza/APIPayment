@@ -312,12 +312,12 @@ namespace APIRestPayment.Controllers
                         //3 Pay the deposit back              
                         string paymentStatus, paymentError, paymentTrackingNumber;
                         paymentController.PerformPayment(ReverseDepositPayerTransaction, out paymentStatus, out paymentError, out paymentTrackingNumber);
-                        DepositBackPaymentResult = TheModelFactory.Create(paymentStatus, paymentError, paymentTrackingNumber);
+                        DepositBackPaymentResult = TheModelFactory.Create(paymentStatus, paymentError, paymentTrackingNumber , jaldaContract.Ordernumber);
                         //4 Pay Jalda Transaction to payee
                         if (JaldaPayerTransaction.Amount != 0)
                         {
                             paymentController.PerformPayment(JaldaPayerTransaction, out paymentStatus, out paymentError, out paymentTrackingNumber);
-                            TerminatePaymentResult = TheModelFactory.Create(paymentStatus, paymentError, paymentTrackingNumber);
+                            TerminatePaymentResult = TheModelFactory.Create(paymentStatus, paymentError, paymentTrackingNumber , jaldaContract.Ordernumber);
                         }
                         else
                         {
@@ -397,7 +397,7 @@ namespace APIRestPayment.Controllers
                 {
                     string paymentStatus, paymentError, paymentTrackingNumber;
                     paymentController.PerformPayment(DepositPayerTransaction, out paymentStatus, out paymentError, out paymentTrackingNumber);
-                    DepositPaymentResult = TheModelFactory.Create(paymentStatus, paymentError, paymentTrackingNumber);
+                    DepositPaymentResult = TheModelFactory.Create(paymentStatus, paymentError, paymentTrackingNumber , jaldaContract.Ordernumber);
                     if (paymentStatus == Constants.PaymentStatusTypes.Completed)
                     {
                         CASPaymentDTO.Domain.JaldaTicks jaldaThick = this.TheModelFactory.Parse(jaldaThickPOSTModel, jaldaContract, out ErrorMessage);

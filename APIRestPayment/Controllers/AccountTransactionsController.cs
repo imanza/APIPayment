@@ -55,6 +55,8 @@ namespace APIRestPayment.Controllers
         #endregion
 
         #region GET
+
+        [Route("api/accounts/{accountsId:long}/{inout:alpha?}/payments", Name = "GetAccountTransactions")]
         public HttpResponseMessage Get(long accountsId, [FromUri] string inout, int page = 0, int pageSize = 10, string startDate = "", string endDate = "")
         {
             try
@@ -114,8 +116,8 @@ namespace APIRestPayment.Controllers
                             var totalCount = result.Count();
                             var totalPages = (int)Math.Ceiling((double)totalCount / pageSize);
                             var urlHelper = new UrlHelper(Request);
-                            var prevLink = page > 0 ? urlHelper.Link("AccountTransactions", new { page = page - 1 }) : null;
-                            var nextLink = page < totalPages - 1 ? urlHelper.Link("AccountTransactions", new { page = page + 1 }) : null;
+                            var prevLink = page > 0 ? urlHelper.Link("GetAccountTransactions", new { page = page - 1 }) : null;
+                            var nextLink = page < totalPages - 1 ? urlHelper.Link("GetAccountTransactions", new { page = page + 1 }) : null;
                             ///////////////////////////////////////////////////
                             var resultInModel = result
                             .Skip(pageSize * page)

@@ -12,8 +12,8 @@ using System.Web;
 
 namespace APIRestPayment.Controllers
 {
-    // [Filters.GeneralAuthorization]
     [Authorize]
+    [RoutePrefix("api/users")]
     public class UsersController : BaseApiController
     {
         CASPaymentDAO.DataHandler.UsersDataHandler userHandler = new CASPaymentDAO.DataHandler.UsersDataHandler(WebApiApplication.SessionFactory);
@@ -52,6 +52,7 @@ namespace APIRestPayment.Controllers
 
         #region Get
 
+        [Route("{id:long}", Name="GetUser")]
         public HttpResponseMessage GetUser(long id)
         {
             var identity = User.Identity as ClaimsIdentity;
@@ -110,6 +111,8 @@ namespace APIRestPayment.Controllers
             }
 
         }
+        
+        [Route(Name="GetAllUsers")]
         public HttpResponseMessage Get(int page = 0, int pageSize = 2)
         {
             IList<CASPaymentDTO.Domain.Users> result = new List<CASPaymentDTO.Domain.Users>();
@@ -157,8 +160,8 @@ namespace APIRestPayment.Controllers
                     var totalCount = result.Count();
                     var totalPages = (int)Math.Ceiling((double)totalCount / pageSize);
                     var urlHelper = new UrlHelper(Request);
-                    var prevLink = page > 0 ? urlHelper.Link("Users", new { page = page - 1 }) : null;
-                    var nextLink = page < totalPages - 1 ? urlHelper.Link("Users", new { page = page + 1 }) : null;
+                    var prevLink = page > 0 ? urlHelper.Link("GetAllUsers", new { page = page - 1 }) : null;
+                    var nextLink = page < totalPages - 1 ? urlHelper.Link("GetAllUsers", new { page = page + 1 }) : null;
                     ///////////////////////////////////////////////////
                     var resultInModel = result
                     .Skip(pageSize * page)

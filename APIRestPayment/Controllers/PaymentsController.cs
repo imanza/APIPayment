@@ -19,6 +19,7 @@ using Nito.AsyncEx;
 namespace APIRestPayment.Controllers
 {
     [Authorize]
+    [RoutePrefix("api/payments")]
     public class PaymentsController : BaseApiController
     {
         HttpContext mainContext;
@@ -87,7 +88,8 @@ namespace APIRestPayment.Controllers
         #region GET
 
 
-        // [Filters.GeneralAuthorization]
+
+        [Route("{id:long}",Name="GetPayment")]
         public HttpResponseMessage GetPayment(long id)
         {
             var identity = User.Identity as ClaimsIdentity;
@@ -173,21 +175,7 @@ namespace APIRestPayment.Controllers
                 }
             }
         }
-
-        private long GetIdofCurrentUser()
-        {
-            var identity = User.Identity as ClaimsIdentity;
-            if (identity != null)
-            {
-                var currentuserIdstring = identity.Claims.Where(c => c.Type == ClaimTypes.NameIdentifier).Select(c => c.Value).FirstOrDefault();
-                long currentUserId;
-                if (long.TryParse(currentuserIdstring, out currentUserId))
-                {
-                    return currentUserId;
-                }
-            }
-            return -1;
-        }
+        
         private long GetIdofCurrentUser(ClaimsIdentity identity)
         {
             if (identity != null)
@@ -201,10 +189,8 @@ namespace APIRestPayment.Controllers
             }
             return -1;
         }
-
-
-
-        //  [Filters.GeneralAuthorization]
+        
+        [Route(Name="GetAllPayments")]
         public HttpResponseMessage Get(int page = 0, int pageSize = 10, string trackingNumber = "", string startDate = "", string endDate = "")
         {
             IList<CASPaymentDTO.Domain.Transactions> result = new List<CASPaymentDTO.Domain.Transactions>();
@@ -294,8 +280,8 @@ namespace APIRestPayment.Controllers
             var totalCount = result.Count();
             var totalPages = (int)Math.Ceiling((double)totalCount / pageSize);
             var urlHelper = new UrlHelper(Request);
-            var prevLink = page > 0 ? urlHelper.Link("Payments", new { page = page - 1 }) : null;
-            var nextLink = page < totalPages - 1 ? urlHelper.Link("Payments", new { page = page + 1 }) : null;
+            var prevLink = page > 0 ? urlHelper.Link("GetAllPayments", new { page = page - 1 }) : null;
+            var nextLink = page < totalPages - 1 ? urlHelper.Link("GetAllPayments", new { page = page + 1 }) : null;
             ///////////////////////////////////////////////////
             var resultInModel = result
             .Skip(pageSize * page)
@@ -322,7 +308,7 @@ namespace APIRestPayment.Controllers
         }
 
         [AllowAnonymous]
-        public HttpResponseMessage Get([FromUri]string PaymentPOSTModelJson/* string TransactionType,string Currency, string Amount,string PayeeAccountNumber,string RedirectUrl,string RequestNonce,string RequestDate*/)
+        public HttpResponseMessage Get([FromUri]string PaymentPOSTModelJson)
         {
             string ParseErrorMessage;
             Newtonsoft.Json.JsonSerializerSettings jj = new Newtonsoft.Json.JsonSerializerSettings { NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore };
@@ -375,8 +361,8 @@ namespace APIRestPayment.Controllers
 
         #region POST
 
-        
-        //[Route("api/payments/{PaymentPOSTModelJson}")]
+
+        [Route("create" , Name="CreatePayment")]
         [HttpPost]
         public async Task<HttpResponseMessage> Post([FromBody] Models.POSTModels.PaymentPOSTModel PaymentPOSTModelJson)
         {
@@ -437,7 +423,6 @@ namespace APIRestPayment.Controllers
                 }).ConfigureAwait(false);
         }
 
-
         private async Task<HttpResponseMessage> HandleTransferRequest(Models.POSTModels.PaymentPOSTModel paymodel, IEnumerable<string> scopesGranted)
         {
             return await Task.Run(async () =>
@@ -468,7 +453,7 @@ namespace APIRestPayment.Controllers
                          CASPaymentDTO.Domain.Transactions payerTransaction = await this.CreatePayerTransaction(paymodel, PayerAccount);
                          string paymentStatus, trackingNumber, errorPayment;
                          this.PerformPayment(payerTransaction, out paymentStatus, out errorPayment, out trackingNumber);
-                         Models.PaymentResultModel resultofTransferPayment = TheModelFactory.Create(paymentStatus, errorPayment, trackingNumber);
+                         Models.PaymentResultModel resultofTransferPayment = TheModelFactory.Create(paymentStatus, errorPayment, trackingNumber, paymodel.OrderNumber);
                          return Request.CreateResponse((resultofTransferPayment.ResultOfPayment == PaymentStatusTypes.Completed) ? HttpStatusCode.OK : HttpStatusCode.InternalServerError, new Models.QueryResponseModel
                          {
                              meta = new Models.MetaModel
@@ -485,7 +470,7 @@ namespace APIRestPayment.Controllers
                          {
                              code = (int)HttpStatusCode.BadRequest
                          },
-                         data = TheModelFactory.Create(PaymentStatusTypes.Canceled, paymentErrorResult, null)
+                         data = TheModelFactory.Create(PaymentStatusTypes.Canceled, paymentErrorResult, null, paymodel.OrderNumber)
                      });
 
                  }
@@ -541,18 +526,12 @@ namespace APIRestPayment.Controllers
 
         #region Checks
 
-
-        //[EnableCors(Constants.Paths.OAuthServerPath, // Origin
-        //      "*",                     // Request headers
-        //      "POST"                   // HTTP methods
-        //)]
         
-        //[Route("api/payments/check")]        
         [HttpPost]
-        [ActionName("check")]
-        public async Task<HttpResponseMessage> Check([FromBody]Models.POSTModels.OAuthServerCheckUserAccountPOSTModel OAuthServerCheckUserAccountPOSTModelJSON)
+        [ActionName("CheckAccountAndPIN")]
+        [Route("check")]
+        public async Task<HttpResponseMessage> PostCheck([FromBody]Models.POSTModels.OAuthServerCheckUserAccountPOSTModel OAuthServerCheckUserAccountPOSTModelJSON)
         {
-
             if (CurrentUserRoleType == RoleTypes.Administrator)
             {
                 var identity = User.Identity as ClaimsIdentity;
@@ -605,7 +584,7 @@ namespace APIRestPayment.Controllers
         }
         private bool CheckValidityOFPOSTModel(Models.POSTModels.PaymentPOSTModel paymentModel, out string ErrorMessage)
         {
-            if (paymentModel.PayeeAccountNumber == null || paymentModel.TransactionType == null || paymentModel.Amount == null || paymentModel.RequestNonce == null)
+            if (paymentModel.PayeeAccountNumber == null || paymentModel.TransactionType == null || paymentModel.Amount == null )
             {
                 ErrorMessage = "Incomplete Payment Data.";
                 return false;
@@ -620,8 +599,6 @@ namespace APIRestPayment.Controllers
                 ErrorMessage = string.IsNullOrEmpty(paymentModel.OrderNumber) ? "OrderNumber must be assigned in purchase requests" : "Redirect Url must be assigned in purchase requests";
                 return false;
             }
-
-            //TODO check for nonces and datetimes to prevent system exposed with REPLAY ATTACK
 
             CASPaymentDTO.Domain.Account PayeeAccNo = accountHandler.Search(new CASPaymentDTO.Domain.Account { Accountnumber = paymentModel.PayeeAccountNumber }).Cast<CASPaymentDTO.Domain.Account>().FirstOrDefault();
             if (object.Equals(PayeeAccNo, default(CASPaymentDTO.Domain.Account)))
@@ -751,6 +728,26 @@ namespace APIRestPayment.Controllers
 
 
             CASPaymentDTO.Domain.PaymentStatus completePaymentStatus = paymentStatusHandler.Search(new CASPaymentDTO.Domain.PaymentStatus { NameEn = PaymentStatusTypes.Completed }).Cast<CASPaymentDTO.Domain.PaymentStatus>().FirstOrDefault();
+
+            //Get TransactionFees
+            //we use payee amount because it is absoloute and positive .... No other special reason !!!
+            if (payerTransaction.TransactionTypeItem.NameEn != TransactionTypes.Fees)
+            {
+                float feesRate = (payeeTransaction.TransactionTypeItem.Comissionrate.HasValue && payeeTransaction.TransactionTypeItem.Comissionrate.Value > 0) ? payeeTransaction.TransactionTypeItem.Comissionrate.Value : default(float);
+                if (!feesRate.Equals(default(float)))
+                {
+                    CASPaymentDTO.Domain.Transactions transactionfeesPayer = GetTransactionFees(payerTransaction, feesRate);
+                    string transactionfeesStatus,transactionfeesError,transactionfeesTrackingNumber;
+                    this.PerformPayment(transactionfeesPayer, out transactionfeesStatus, out transactionfeesError,out transactionfeesTrackingNumber);
+                    if (transactionfeesStatus == PaymentStatusTypes.Canceled)
+                    {
+                        paymentStatus = PaymentStatusTypes.Canceled;
+                        ErrorPayment = "Could not get transaction fees";
+                        trackNumber = null;
+                        return;
+                    }
+                }
+            }
             //bool Completed = false;
             bool isTransactionComplete = false;
             string TransactionError = "";
@@ -817,6 +814,22 @@ namespace APIRestPayment.Controllers
             }
         }
 
+        private CASPaymentDTO.Domain.Transactions GetTransactionFees(CASPaymentDTO.Domain.Transactions mainTransaction, float rate)
+        {
+            Decimal transactionfeesAmount = (decimal)rate * mainTransaction.Amount.Value;
+            Models.POSTModels.PaymentPOSTModel feesPaymodel = new Models.POSTModels.PaymentPOSTModel
+            {
+                Amount = transactionfeesAmount,
+                Currency = PaymentSystemConstants.TransactionFeesAccountCurrency,
+                //In this part we can determine who is going to pay the fees.... At the current time the payer is responsible for paying the fees.
+                PayerAccountNumber = mainTransaction.DestinationAccountItem.Accountnumber,
+                PayeeAccountNumber = PaymentSystemConstants.TransactionFeesAccountNumber,
+                TransactionType = TransactionTypes.Fees,
+                Description = "Transaction Fees: " + Math.Abs( transactionfeesAmount) + " " + PaymentSystemConstants.TransactionFeesAccountCurrency + " is deducted from " + mainTransaction.DestinationAccountItem.Accountnumber,
+            };
+            return CreatePayerTransaction(feesPaymodel, mainTransaction.DestinationAccountItem).Result;
+        }
+
         private CASPaymentDTO.Domain.AccountDailyActivity GetPayerTodayActivity(CASPaymentDTO.Domain.Account payerAccount, string TransactionType, Decimal AmountToPay, out bool hasDailyActivity)
         {
             Decimal ABSAmountToPay = Math.Abs(AmountToPay);
@@ -857,7 +870,6 @@ namespace APIRestPayment.Controllers
                 return payerTransaction;
             }).ConfigureAwait(false);
         }
-
 
         private CASPaymentDTO.Domain.Transactions ReverseTransaction(CASPaymentDTO.Domain.Transactions mainTransaction)
         {

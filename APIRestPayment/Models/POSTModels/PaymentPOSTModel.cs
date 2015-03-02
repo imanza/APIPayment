@@ -13,10 +13,7 @@ namespace APIRestPayment.Models.POSTModels
         public string PayeeAccountNumber { set; get; }
         public string PayerAccountNumber { set; get; }
         public string RedirectUrl { set; get; }
-        public string RequestNonce { set; get; }
-        public DateTime? RequestDate  { set; get; }
         public string OrderNumber { get; set; }
-
         public string PaymentPIN { get; set; }
         public string HashPaymentCode { set; get; }
         public string Description { set; get; }

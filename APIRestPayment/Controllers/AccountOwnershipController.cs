@@ -18,7 +18,8 @@ namespace APIRestPayment.Controllers
         CASPaymentDAO.DataHandler.UsersDataHandler usersHandler = new CASPaymentDAO.DataHandler.UsersDataHandler(WebApiApplication.SessionFactory);
 
         #region Get
-        
+
+        [Route("api/users/{usersId:long}/accounts", Name = "GetAccountOwnership")]
         public HttpResponseMessage Get(int usersId , int page = 0, int pageSize = 10)
         {
             //check whether the entity requesting this resource is admin. if not, then an unauthorized response is sent back.
@@ -45,8 +46,8 @@ namespace APIRestPayment.Controllers
                     var totalCount = result.Count();
                     var totalPages = (int)Math.Ceiling((double)totalCount / pageSize);
                     var urlHelper = new UrlHelper(Request);
-                    var prevLink = page > 0 ? urlHelper.Link("AccountOwnership", new { page = page - 1 }) : null;
-                    var nextLink = page < totalPages - 1 ? urlHelper.Link("AccountOwnership", new { page = page + 1 }) : null;
+                    var prevLink = page > 0 ? urlHelper.Link("GetAccountOwnership", new { page = page - 1 }) : null;
+                    var nextLink = page < totalPages - 1 ? urlHelper.Link("GetAccountOwnership", new { page = page + 1 }) : null;
                     ///////////////////////////////////////////////////
                     var resultInModel = result
                     .Skip(pageSize * page)

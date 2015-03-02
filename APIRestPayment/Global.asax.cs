@@ -34,7 +34,6 @@ namespace APIRestPayment
             var nhConfig = new NHibernate.Cfg.Configuration().Configure();
             SessionFactory = nhConfig.BuildSessionFactory(); 
             
-            
 
             ////force Https
             ////FilterConfig.RegisterHttpFilters(GlobalConfiguration.Configuration.Filters);
